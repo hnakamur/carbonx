@@ -17,7 +17,7 @@ func main() {
 
 	cfg := carbontest.Config{
 		RootDir:          "/tmp/my-carbon-test",
-		GRPCPort:         ports[0],
+		HTTPReceiverPort: ports[0],
 		CarbonServerPort: ports[1],
 		Schemas: carbontest.SchemasConfig{
 			{
@@ -56,7 +56,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("go-carbon satrted, GRPCPort=%d, CarbonServerPort=%d", cfg.GRPCPort, cfg.CarbonServerPort)
+	log.Printf("go-carbon satrted, HTTPReceiverPort=%d, CarbonServerPort=%d", cfg.HTTPReceiverPort, cfg.CarbonServerPort)
 
 	go func() {
 		c := make(chan os.Signal, 1)

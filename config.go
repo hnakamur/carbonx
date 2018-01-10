@@ -54,8 +54,13 @@ enabled = false
 read-timeout = "30s"
 
 [grpc]
-listen = "127.0.0.1:{{.GRPCPort}}"
-enabled = true
+listen = "127.0.0.1:7003}"
+enabled = false
+
+[receiver.http]
+protocol = "http"
+listen = ":{{.HTTPReceiverPort}}"
+max-message-size = 67108864
 
 [tags]
 enabled = false
@@ -95,7 +100,7 @@ enabled = false
 
 type Config struct {
 	RootDir          string
-	GRPCPort         int
+	HTTPReceiverPort int
 	CarbonServerPort int
 	Schemas          SchemasConfig
 	Aggregation      AggregationsConfig
@@ -163,7 +168,7 @@ func (c *Config) WriteCarbonConfigTo(w io.Writer) error {
 		DataDir          string
 		SchemasFile      string
 		AggregationFile  string
-		GRPCPort         int
+		HTTPReceiverPort int
 		CarbonServerPort int
 		TaggingDir       string
 		DumpDir          string
@@ -172,7 +177,7 @@ func (c *Config) WriteCarbonConfigTo(w io.Writer) error {
 		DataDir:          c.DataDirname(),
 		SchemasFile:      c.SchemasFilename(),
 		AggregationFile:  c.AggregationFilename(),
-		GRPCPort:         c.GRPCPort,
+		HTTPReceiverPort: c.HTTPReceiverPort,
 		CarbonServerPort: c.CarbonServerPort,
 		TaggingDir:       c.TaggingDirname(),
 		DumpDir:          c.DumpDirname(),
