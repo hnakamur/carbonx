@@ -15,10 +15,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	cfg := carbontest.Config{
+	s := carbontest.Server{
 		RootDir:          "/tmp/my-carbon-test",
-		HTTPReceiverPort: ports[0],
-		CarbonServerPort: ports[1],
+		TcpPort:          ports[0],
+		CarbonserverPort: ports[1],
 		Schemas: carbontest.SchemasConfig{
 			{
 				Name:       "carbon",
@@ -47,16 +47,12 @@ func main() {
 		},
 	}
 
-	err = cfg.SetupConfigFilesAndDirs()
+	err = s.Start()
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	app, err := cfg.StartServer()
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("go-carbon satrted, HTTPReceiverPort=%d, CarbonServerPort=%d", cfg.HTTPReceiverPort, cfg.CarbonServerPort)
+	log.Printf("go-carbon satrted, TcpPort=%d, PickPort=%d, CarbonserverPort=%d",
+		s.TcpPort, s.PicklePort, s.CarbonserverPort)
 
 	go func() {
 		c := make(chan os.Signal, 1)
@@ -64,11 +60,11 @@ func main() {
 		for {
 			<-c
 			log.Printf("stopping go-carbon")
-			app.DumpStop()
+			s.GracefulStop()
 			log.Printf("exiting")
 			os.Exit(0)
 		}
 	}()
 
-	app.Loop()
+	s.Loop()
 }

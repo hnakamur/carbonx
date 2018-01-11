@@ -1,19 +1,6 @@
 package carbontest
 
-import (
-	"html/template"
-	"io"
-	"os"
-)
-
-const (
-	schemasConfigTmpl = `{{range . -}}
-[{{.Name}}]
-pattern = {{.Pattern}}
-retentions = {{.Retentions}}
-{{end -}}
-`
-)
+import "github.com/alyu/configparser"
 
 type SchemasConfig []SchemaConfig
 
@@ -23,16 +10,12 @@ type SchemaConfig struct {
 	Retentions string
 }
 
-func (c *SchemasConfig) WriteTo(w io.Writer) error {
-	tmpl := template.Must(template.New("schemasConfig").Parse(schemasConfigTmpl))
-	return tmpl.Execute(w, c)
-}
-
 func (c *SchemasConfig) WriteFile(filename string) error {
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
+	cfg := configparser.NewConfiguration()
+	for _, a := range []SchemaConfig(*c) {
+		sec := cfg.NewSection(a.Name)
+		sec.Add("pattern", a.Pattern)
+		sec.Add("retentions", a.Retentions)
 	}
-	defer file.Close()
-	return c.WriteTo(file)
+	return configparser.Save(cfg, filename)
 }

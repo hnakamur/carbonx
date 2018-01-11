@@ -1,19 +1,9 @@
 package carbontest
 
 import (
-	"html/template"
-	"io"
-	"os"
-)
+	"fmt"
 
-const (
-	aggregationConfigTmpl = `{{range . -}}
-[{{.Name}}]
-pattern = {{.Pattern}}
-xFilesFactor = {{.XFilesFactor}}
-aggregationMethod = {{.AggregationMethod}}
-{{end -}}
-`
+	"github.com/alyu/configparser"
 )
 
 type AggregationsConfig []AggregationConfig
@@ -25,16 +15,13 @@ type AggregationConfig struct {
 	AggregationMethod string
 }
 
-func (c *AggregationsConfig) WriteTo(w io.Writer) error {
-	tmpl := template.Must(template.New("aggregationConfig").Parse(aggregationConfigTmpl))
-	return tmpl.Execute(w, c)
-}
-
 func (c *AggregationsConfig) WriteFile(filename string) error {
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
+	cfg := configparser.NewConfiguration()
+	for _, a := range []AggregationConfig(*c) {
+		sec := cfg.NewSection(a.Name)
+		sec.Add("pattern", a.Pattern)
+		sec.Add("xFilesFactor", fmt.Sprintf("%g", a.XFilesFactor))
+		sec.Add("aggregationMethod", a.AggregationMethod)
 	}
-	defer file.Close()
-	return c.WriteTo(file)
+	return configparser.Save(cfg, filename)
 }
