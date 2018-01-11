@@ -1,12 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"log"
-	"os"
-	"os/signal"
-	"syscall"
+	"time"
 
 	carbontest "bitbucket.org/hnakamur/go-carbon-test"
+	graphite "github.com/marpaia/graphite-golang"
+	retry "github.com/rafaeljesus/retry-go"
 )
 
 func main() {
@@ -55,15 +56,58 @@ func main() {
 		s.TcpPort, s.PicklePort, s.CarbonserverPort)
 
 	go func() {
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, syscall.SIGINT)
-		for {
-			<-c
-			log.Printf("stopping go-carbon")
-			s.GracefulStop()
-			log.Printf("exiting")
-			os.Exit(0)
+		defer s.ForceStop()
+		g, err := graphite.NewGraphite("127.0.0.1", s.TcpPort)
+		if err != nil {
+			log.Fatal(err)
 		}
+
+		metricName := "test.access-count"
+		step := time.Second
+		now := time.Now().Truncate(step)
+		metrics := []graphite.Metric{
+			{
+				Name:      metricName,
+				Value:     "3.14159",
+				Timestamp: now.Unix(),
+			},
+		}
+		err = g.SendMetrics(metrics)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("sent metrics, now=%s, timestamp=%d", now, now.Unix())
+		err = g.Disconnect()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		carbonserverURL := fmt.Sprintf("http://127.0.0.1:%d", s.CarbonserverPort)
+		c, err := carbontest.NewClient(carbonserverURL, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		var info *carbontest.InfoResponse
+		attempts := 5
+		sleepTime := 100 * time.Millisecond
+		err = retry.Do(func() error {
+			var err error
+			info, err = c.GetMetricInfo(metricName)
+			return err
+		}, attempts, sleepTime)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("metricInfo=%+v", info)
+
+		from := now.Add(-step)
+		until := from
+		data, err := c.FetchData(metricName, from, until)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("data=%+v", data)
 	}()
 
 	s.Loop()

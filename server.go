@@ -116,6 +116,10 @@ func (s *Server) Loop() {
 	s.app.Loop()
 }
 
+func (s *Server) ForceStop() {
+	s.app.Stop()
+}
+
 func (s *Server) GracefulStop() error {
 	return s.app.DumpStop()
 }
