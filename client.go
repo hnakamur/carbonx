@@ -21,23 +21,37 @@ type Client struct {
 	carbonserverURL *url.URL
 }
 
-func NewClient(carbonserverURL string, httpClient *http.Client) (*Client, error) {
-	var serverURL *url.URL
+type ClientOption func(c *Client) error
 
-	var err error
-	if carbonserverURL != "" {
-		serverURL, err = url.Parse(carbonserverURL)
+func NewClient(options ...ClientOption) (*Client, error) {
+	c := &Client{
+		httpClient: &http.Client{},
+	}
+	for _, o := range options {
+		err := o(c)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if httpClient == nil {
-		httpClient = &http.Client{}
+	return c, nil
+}
+
+func SetCarbonserverURL(carbonserverURL string) ClientOption {
+	return func(c *Client) error {
+		serverURL, err := url.Parse(carbonserverURL)
+		if err != nil {
+			return err
+		}
+		c.carbonserverURL = serverURL
+		return nil
 	}
-	return &Client{
-		httpClient:      httpClient,
-		carbonserverURL: serverURL,
-	}, nil
+}
+
+func SetHTTPClient(httpClient *http.Client) ClientOption {
+	return func(c *Client) error {
+		c.httpClient = httpClient
+		return nil
+	}
 }
 
 func (c *Client) GetMetricInfo(name string) (*InfoResponse, error) {

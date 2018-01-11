@@ -83,7 +83,7 @@ func main() {
 		}
 
 		carbonserverURL := fmt.Sprintf("http://127.0.0.1:%d", s.CarbonserverPort)
-		c, err := carbontest.NewClient(carbonserverURL, nil)
+		c, err := carbontest.NewClient(carbontest.SetCarbonserverURL(carbonserverURL))
 		if err != nil {
 			log.Fatal(err)
 		}
