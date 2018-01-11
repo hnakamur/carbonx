@@ -5,22 +5,22 @@ import (
 	"log"
 	"time"
 
-	carbontest "bitbucket.org/hnakamur/go-carbon-test"
+	"github.com/hnakamur/carbonx"
 	graphite "github.com/marpaia/graphite-golang"
 	retry "github.com/rafaeljesus/retry-go"
 )
 
 func main() {
-	ports, err := carbontest.GetFreePorts(2)
+	ports, err := carbonx.GetFreePorts(2)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	s := carbontest.Server{
+	s := carbonx.TestServer{
 		RootDir:          "/tmp/my-carbon-test",
 		TcpPort:          ports[0],
 		CarbonserverPort: ports[1],
-		Schemas: carbontest.SchemasConfig{
+		Schemas: []carbonx.SchemaConfig{
 			{
 				Name:       "carbon",
 				Pattern:    "carbon\\.*",
@@ -32,7 +32,7 @@ func main() {
 				Retentions: "1s:5s,5s:15s,15s:60s",
 			},
 		},
-		Aggregation: carbontest.AggregationsConfig{
+		Aggregations: []carbonx.AggregationConfig{
 			{
 				Name:              "carbon",
 				Pattern:           "carbon\\.*",
@@ -56,7 +56,8 @@ func main() {
 		s.TcpPort, s.PicklePort, s.CarbonserverPort)
 
 	go func() {
-		defer s.ForceStop()
+		defer s.Stop()
+
 		g, err := graphite.NewGraphite("127.0.0.1", s.TcpPort)
 		if err != nil {
 			log.Fatal(err)
@@ -83,12 +84,12 @@ func main() {
 		}
 
 		carbonserverURL := fmt.Sprintf("http://127.0.0.1:%d", s.CarbonserverPort)
-		c, err := carbontest.NewClient(carbontest.SetCarbonserverURL(carbonserverURL))
+		c, err := carbonx.NewClient(carbonx.SetCarbonserverURL(carbonserverURL))
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		var info *carbontest.InfoResponse
+		var info *carbonx.InfoResponse
 		attempts := 5
 		sleepTime := 100 * time.Millisecond
 		err = retry.Do(func() error {

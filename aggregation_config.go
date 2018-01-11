@@ -1,12 +1,10 @@
-package carbontest
+package carbonx
 
 import (
 	"fmt"
 
 	"github.com/alyu/configparser"
 )
-
-type AggregationsConfig []AggregationConfig
 
 type AggregationConfig struct {
 	Name              string
@@ -15,9 +13,11 @@ type AggregationConfig struct {
 	AggregationMethod string
 }
 
-func (c *AggregationsConfig) WriteFile(filename string) error {
+type aggregationsConfig []AggregationConfig
+
+func (c aggregationsConfig) writeFile(filename string) error {
 	cfg := configparser.NewConfiguration()
-	for _, a := range []AggregationConfig(*c) {
+	for _, a := range []AggregationConfig(c) {
 		sec := cfg.NewSection(a.Name)
 		sec.Add("pattern", a.Pattern)
 		sec.Add("xFilesFactor", fmt.Sprintf("%g", a.XFilesFactor))

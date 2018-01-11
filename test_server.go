@@ -1,4 +1,4 @@
-package carbontest
+package carbonx
 
 import (
 	"fmt"
@@ -9,23 +9,23 @@ import (
 	"github.com/lomik/go-carbon/carbon"
 )
 
-type Server struct {
+type TestServer struct {
 	RootDir          string
 	TcpPort          int
 	PicklePort       int
 	CarbonserverPort int
-	Schemas          SchemasConfig
-	Aggregation      AggregationsConfig
+	Schemas          []SchemaConfig
+	Aggregations     []AggregationConfig
 
 	app *carbon.App
 }
 
-func (s *Server) Start() error {
+func (s *TestServer) Start() error {
 	err := s.setup()
 	if err != nil {
 		return err
 	}
-	s.app = carbon.New(s.CarbonConfigFilename())
+	s.app = carbon.New(s.carbonConfigFilename())
 	err = s.app.ParseConfig()
 	if err != nil {
 		return err
@@ -33,23 +33,23 @@ func (s *Server) Start() error {
 	return s.app.Start()
 }
 
-func (s *Server) CarbonConfigFilename() string {
+func (s *TestServer) carbonConfigFilename() string {
 	return filepath.Join(s.RootDir, "go-carbon.conf")
 }
 
-func (s *Server) dataDirname() string {
+func (s *TestServer) dataDirname() string {
 	return filepath.Join(s.RootDir, "data")
 }
 
-func (s *Server) schemasFilename() string {
+func (s *TestServer) schemasFilename() string {
 	return filepath.Join(s.RootDir, "storage-schemas.conf")
 }
 
-func (s *Server) aggregationFilename() string {
+func (s *TestServer) aggregationFilename() string {
 	return filepath.Join(s.RootDir, "storage-aggregation.conf")
 }
 
-func (s *Server) writeCarbonConfigFile() error {
+func (s *TestServer) writeCarbonConfigFile() error {
 	cfg := carbon.NewConfig()
 	cfg.Udp.Enabled = false
 	cfg.Grpc.Enabled = false
@@ -77,7 +77,7 @@ func (s *Server) writeCarbonConfigFile() error {
 		cfg.Carbonserver.Enabled = false
 	}
 
-	file, err := os.Create(s.CarbonConfigFilename())
+	file, err := os.Create(s.carbonConfigFilename())
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (s *Server) writeCarbonConfigFile() error {
 	return nil
 }
 
-func (s *Server) setup() error {
+func (s *TestServer) setup() error {
 	err := os.MkdirAll(s.dataDirname(), 0700)
 	if err != nil {
 		return err
@@ -101,25 +101,21 @@ func (s *Server) setup() error {
 	if err != nil {
 		return err
 	}
-	err = s.Schemas.WriteFile(s.schemasFilename())
+	err = schemasConfig(s.Schemas).writeFile(s.schemasFilename())
 	if err != nil {
 		return err
 	}
-	err = s.Aggregation.WriteFile(s.aggregationFilename())
+	err = aggregationsConfig(s.Aggregations).writeFile(s.aggregationFilename())
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *Server) Loop() {
+func (s *TestServer) Loop() {
 	s.app.Loop()
 }
 
-func (s *Server) ForceStop() {
+func (s *TestServer) Stop() {
 	s.app.Stop()
-}
-
-func (s *Server) GracefulStop() error {
-	return s.app.DumpStop()
 }

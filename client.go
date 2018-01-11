@@ -1,4 +1,4 @@
-package carbontest
+package carbonx
 
 import (
 	"errors"
@@ -24,14 +24,15 @@ type Client struct {
 type ClientOption func(c *Client) error
 
 func NewClient(options ...ClientOption) (*Client, error) {
-	c := &Client{
-		httpClient: &http.Client{},
-	}
+	c := &Client{}
 	for _, o := range options {
 		err := o(c)
 		if err != nil {
 			return nil, err
 		}
+	}
+	if c.httpClient == nil {
+		c.httpClient = &http.Client{}
 	}
 	return c, nil
 }
