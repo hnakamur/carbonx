@@ -1,4 +1,4 @@
-package carbonx
+package test
 
 import "github.com/alyu/configparser"
 
