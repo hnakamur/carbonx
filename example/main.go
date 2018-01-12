@@ -3,10 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/hnakamur/carbonx"
-	graphite "github.com/marpaia/graphite-golang"
+	"github.com/hnakamur/carbonx/sender"
 	retry "github.com/rafaeljesus/retry-go"
 )
 
@@ -15,17 +16,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	s := carbonx.TestServer{
-		RootDir:          "/tmp/my-carbon-test",
-		TcpPort:          ports[0],
+	ts := carbonx.TestServer{
+		RootDir: "/tmp/my-carbon-test",
+		//TcpPort:          ports[0],
+		PicklePort:       ports[0],
 		CarbonserverPort: ports[1],
 		Schemas: []carbonx.SchemaConfig{
-			{
-				Name:       "carbon",
-				Pattern:    "carbon\\.*",
-				Retentions: "60:90d",
-			},
 			{
 				Name:       "default",
 				Pattern:    "\\.*",
@@ -33,12 +29,6 @@ func main() {
 			},
 		},
 		Aggregations: []carbonx.AggregationConfig{
-			{
-				Name:              "carbon",
-				Pattern:           "carbon\\.*",
-				XFilesFactor:      0.5,
-				AggregationMethod: "sum",
-			},
 			{
 				Name:              "default",
 				Pattern:           "\\.*",
@@ -48,43 +38,44 @@ func main() {
 		},
 	}
 
-	err = s.Start()
+	err = ts.Start()
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("go-carbon satrted, TcpPort=%d, PickPort=%d, CarbonserverPort=%d",
-		s.TcpPort, s.PicklePort, s.CarbonserverPort)
+		ts.TcpPort, ts.PicklePort, ts.CarbonserverPort)
 
 	go func() {
-		defer s.Stop()
-
-		g, err := graphite.NewGraphite("127.0.0.1", s.TcpPort)
-		if err != nil {
-			log.Fatal(err)
-		}
+		defer ts.Stop()
 
 		metricName := "test.access-count"
 		step := time.Second
 		now := time.Now().Truncate(step)
-		metrics := []graphite.Metric{
+		metrics := []sender.Message{
 			{
-				Name:      metricName,
-				Value:     "3.14159",
-				Timestamp: now.Unix(),
+				Name: metricName,
+				Points: []sender.DataPoint{
+					{
+						Timestamp: now.Unix(),
+						Value:     3.14159,
+					},
+				},
 			},
 		}
-		err = g.SendMetrics(metrics)
+
+		//s, err := sender.NewTCP(fmt.Sprintf("127.0.0.1:%d", ts.TcpPort))
+		s, err := sender.NewPickle(fmt.Sprintf("127.0.0.1:%d", ts.PicklePort))
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("sent metrics, now=%s, timestamp=%d", now, now.Unix())
-		err = g.Disconnect()
+		err = s.Send(metrics)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		carbonserverURL := fmt.Sprintf("http://127.0.0.1:%d", s.CarbonserverPort)
-		c, err := carbonx.NewClient(carbonx.SetCarbonserverURL(carbonserverURL))
+		c, err := carbonx.NewClient(
+			fmt.Sprintf("http://127.0.0.1:%d", ts.CarbonserverPort),
+			&http.Client{Timeout: 5 * time.Second})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -111,5 +102,5 @@ func main() {
 		log.Printf("data=%+v", data)
 	}()
 
-	s.Loop()
+	ts.Loop()
 }

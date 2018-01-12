@@ -5,3 +5,4 @@ import (
 )
 
 type Message = pickle.Message
+type DataPoint = pickle.DataPoint
