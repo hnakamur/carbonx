@@ -8,28 +8,28 @@ import (
 
 	"github.com/hnakamur/carbonx"
 	"github.com/hnakamur/carbonx/sender"
-	"github.com/hnakamur/carbonx/test"
+	"github.com/hnakamur/carbonx/testserver"
 	retry "github.com/rafaeljesus/retry-go"
 )
 
 func main() {
-	ports, err := test.GetFreePorts(2)
+	ports, err := testserver.GetFreePorts(2)
 	if err != nil {
 		log.Fatal(err)
 	}
-	ts := test.CarbonServer{
+	ts := testserver.Carbon{
 		RootDir: "/tmp/my-carbon-test",
 		//TcpPort:          ports[0],
 		PicklePort:       ports[0],
 		CarbonserverPort: ports[1],
-		Schemas: []test.SchemaConfig{
+		Schemas: []testserver.SchemaConfig{
 			{
 				Name:       "default",
 				Pattern:    "\\.*",
 				Retentions: "1s:5s,5s:15s,15s:60s",
 			},
 		},
-		Aggregations: []test.AggregationConfig{
+		Aggregations: []testserver.AggregationConfig{
 			{
 				Name:              "default",
 				Pattern:           "\\.*",

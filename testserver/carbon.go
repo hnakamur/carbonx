@@ -1,4 +1,4 @@
-package test
+package testserver
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"github.com/lomik/go-carbon/carbon"
 )
 
-type CarbonServer struct {
+type Carbon struct {
 	RootDir          string
 	TcpPort          int
 	PicklePort       int
@@ -20,7 +20,7 @@ type CarbonServer struct {
 	app *carbon.App
 }
 
-func (s *CarbonServer) Start() error {
+func (s *Carbon) Start() error {
 	err := s.setup()
 	if err != nil {
 		return err
@@ -33,23 +33,23 @@ func (s *CarbonServer) Start() error {
 	return s.app.Start()
 }
 
-func (s *CarbonServer) carbonConfigFilename() string {
+func (s *Carbon) carbonConfigFilename() string {
 	return filepath.Join(s.RootDir, "go-carbon.conf")
 }
 
-func (s *CarbonServer) dataDirname() string {
+func (s *Carbon) dataDirname() string {
 	return filepath.Join(s.RootDir, "data")
 }
 
-func (s *CarbonServer) schemasFilename() string {
+func (s *Carbon) schemasFilename() string {
 	return filepath.Join(s.RootDir, "storage-schemas.conf")
 }
 
-func (s *CarbonServer) aggregationFilename() string {
+func (s *Carbon) aggregationFilename() string {
 	return filepath.Join(s.RootDir, "storage-aggregation.conf")
 }
 
-func (s *CarbonServer) writeCarbonConfigFile() error {
+func (s *Carbon) writeCarbonConfigFile() error {
 	cfg := carbon.NewConfig()
 	cfg.Udp.Enabled = false
 	cfg.Grpc.Enabled = false
@@ -92,7 +92,7 @@ func (s *CarbonServer) writeCarbonConfigFile() error {
 	return nil
 }
 
-func (s *CarbonServer) setup() error {
+func (s *Carbon) setup() error {
 	err := os.MkdirAll(s.dataDirname(), 0700)
 	if err != nil {
 		return err
@@ -112,10 +112,10 @@ func (s *CarbonServer) setup() error {
 	return nil
 }
 
-func (s *CarbonServer) Loop() {
+func (s *Carbon) Loop() {
 	s.app.Loop()
 }
 
-func (s *CarbonServer) Stop() {
+func (s *Carbon) Stop() {
 	s.app.Stop()
 }
