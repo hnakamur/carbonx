@@ -124,3 +124,37 @@ func (c *Client) FetchData(name string, from, until time.Time) (*FetchResponse, 
 		return nil, errors.New("unexpected status from info")
 	}
 }
+
+// // SendPickleData sends data to the TCP pickle receiver of a go-carbon server.
+// func SendPickleData(address string, metric string, dataPoints []pickle.DataPoint, maxPointsInFrame int) error {
+//     conn, err := net.Dial("tcp", address)
+//     if err != nil {
+//         return fmt.Errorf("failed to connect to go-carbon, err=%v", err)
+//     }
+//     defer conn.Close()
+//
+//     framedConn, err := framing.NewConn(conn, byte(4), binary.BigEndian)
+//     if err != nil {
+//         return fmt.Errorf("failed to create framing connection, err=%v", err)
+//     }
+//
+//     for i := 0; i < len(dataPoints); i += maxPointsInFrame {
+//         end := i + maxPointsInFrame
+//         if len(dataPoints) < end {
+//             end = len(dataPoints)
+//         }
+//
+//         msg := pickle.Message{Name: metric, Points: dataPoints[i:end]}
+//         data, err := pickle.MarshalMessages([]pickle.Message{msg})
+//         if err != nil {
+//             return fmt.Errorf("failed to marshal points, err=%v", err)
+//         }
+//
+//         _, err = framedConn.Write(data)
+//         if err != nil {
+//             return fmt.Errorf("failed to write data to go-carbon, err=%v", err)
+//         }
+//     }
+//
+//     return nil
+// }
