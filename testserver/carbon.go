@@ -3,10 +3,13 @@ package testserver
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
 	"github.com/lomik/go-carbon/carbon"
+	"github.com/lomik/zapwriter"
 )
 
 type Carbon struct {
@@ -18,14 +21,15 @@ type Carbon struct {
 	Aggregations     []AggregationConfig
 
 	app *carbon.App
+	Cmd *exec.Cmd
 }
 
 func (s *Carbon) Start() error {
-	err := s.setup()
+	err := s.Setup()
 	if err != nil {
 		return err
 	}
-	s.app = carbon.New(s.carbonConfigFilename())
+	s.app = carbon.New(s.CarbonConfigFilename())
 	err = s.app.ParseConfig()
 	if err != nil {
 		return err
@@ -33,7 +37,7 @@ func (s *Carbon) Start() error {
 	return s.app.Start()
 }
 
-func (s *Carbon) carbonConfigFilename() string {
+func (s *Carbon) CarbonConfigFilename() string {
 	return filepath.Join(s.RootDir, "go-carbon.conf")
 }
 
@@ -49,14 +53,32 @@ func (s *Carbon) aggregationFilename() string {
 	return filepath.Join(s.RootDir, "storage-aggregation.conf")
 }
 
+func (s *Carbon) logDirname() string {
+	return s.RootDir
+}
+
 func (s *Carbon) writeCarbonConfigFile() error {
-	cfg := carbon.NewConfig()
+	u, err := user.Current()
+	if err != nil {
+		return err
+	}
+	cfg := NewConfig()
+	cfg.Common.User = u.Username
 	cfg.Udp.Enabled = false
 	cfg.Grpc.Enabled = false
 	cfg.Carbonlink.Enabled = false
 	cfg.Whisper.DataDir = s.dataDirname()
 	cfg.Whisper.SchemasFilename = s.schemasFilename()
 	cfg.Whisper.AggregationFilename = s.aggregationFilename()
+	cfg.Logging = []zapwriter.Config{
+		{
+			File:             filepath.Join(s.logDirname(), "go-carbon.log"),
+			Level:            "info",
+			Encoding:         "console",
+			EncodingTime:     "millis",
+			EncodingDuration: "string",
+		},
+	}
 
 	if s.TcpPort != 0 {
 		cfg.Tcp.Listen = fmt.Sprintf("127.0.0.1:%d", s.TcpPort)
@@ -77,7 +99,7 @@ func (s *Carbon) writeCarbonConfigFile() error {
 		cfg.Carbonserver.Enabled = false
 	}
 
-	file, err := os.Create(s.carbonConfigFilename())
+	file, err := os.Create(s.CarbonConfigFilename())
 	if err != nil {
 		return err
 	}
@@ -92,7 +114,7 @@ func (s *Carbon) writeCarbonConfigFile() error {
 	return nil
 }
 
-func (s *Carbon) setup() error {
+func (s *Carbon) Setup() error {
 	err := os.MkdirAll(s.dataDirname(), 0700)
 	if err != nil {
 		return err
