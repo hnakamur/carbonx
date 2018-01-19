@@ -21,11 +21,11 @@ type Carbon struct {
 	Aggregations     []AggregationConfig
 
 	app *carbon.App
-	Cmd *exec.Cmd
+	cmd *exec.Cmd
 }
 
 func (s *Carbon) Start() error {
-	err := s.Setup()
+	err := s.setup()
 	if err != nil {
 		return err
 	}
@@ -34,7 +34,21 @@ func (s *Carbon) Start() error {
 	if err != nil {
 		return err
 	}
-	return s.app.Start()
+	return s.startProcess()
+}
+
+func (s *Carbon) startProcess() error {
+	const execFilename = "go-carbon"
+	path, err := exec.LookPath(execFilename)
+	if err != nil {
+		return fmt.Errorf("executable %q not found in $PATH", execFilename)
+	}
+	s.cmd = exec.Command(path, "-config", s.CarbonConfigFilename())
+	err = s.cmd.Start()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Carbon) CarbonConfigFilename() string {
@@ -114,7 +128,7 @@ func (s *Carbon) writeCarbonConfigFile() error {
 	return nil
 }
 
-func (s *Carbon) Setup() error {
+func (s *Carbon) setup() error {
 	err := os.MkdirAll(s.dataDirname(), 0700)
 	if err != nil {
 		return err
@@ -134,10 +148,10 @@ func (s *Carbon) Setup() error {
 	return nil
 }
 
-func (s *Carbon) Loop() {
-	s.app.Loop()
+func (s *Carbon) Wait() error {
+	return s.cmd.Wait()
 }
 
-func (s *Carbon) Stop() {
-	s.app.Stop()
+func (s *Carbon) Kill() error {
+	return s.cmd.Process.Kill()
 }

@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"os/exec"
 	"testing"
 	"time"
 
@@ -28,7 +27,7 @@ func TestSendTCP(t *testing.T) {
 		t.Fatal(err)
 	}
 	go func() {
-		defer ts.Cmd.Process.Kill()
+		defer ts.Kill()
 
 		metricName := "test.access-count"
 		step := time.Second
@@ -56,7 +55,7 @@ func TestSendTCP(t *testing.T) {
 
 		fetchAndVerifyMetrics(t, "TestSendTCP", ts.CarbonserverPort, now, step, metrics)
 	}()
-	ts.Cmd.Wait()
+	ts.Wait()
 }
 
 func TestSendPickle(t *testing.T) {
@@ -71,7 +70,7 @@ func TestSendPickle(t *testing.T) {
 		t.Fatal(err)
 	}
 	go func() {
-		defer ts.Cmd.Process.Kill()
+		defer ts.Kill()
 
 		metricName := "test.access-count"
 		step := time.Second
@@ -99,7 +98,7 @@ func TestSendPickle(t *testing.T) {
 
 		fetchAndVerifyMetrics(t, "TestSendPickle", ts.CarbonserverPort, now, step, metrics)
 	}()
-	ts.Cmd.Wait()
+	ts.Wait()
 }
 
 func startCarbonServer(rootDir string) (*testserver.Carbon, error) {
@@ -129,15 +128,10 @@ func startCarbonServer(rootDir string) (*testserver.Carbon, error) {
 		},
 	}
 
-	err = ts.Setup()
+	err = ts.Start()
 	if err != nil {
 		return nil, err
 	}
-	cmd, err := startServer("go-carbon", "-config", ts.CarbonConfigFilename())
-	if err != nil {
-		return nil, err
-	}
-	ts.Cmd = cmd
 
 	err = testserver.WaitPortConnectable(fmt.Sprintf("127.0.0.1:%d", ts.TcpPort), 5, 100*time.Millisecond)
 	if err != nil {
@@ -149,19 +143,6 @@ func startCarbonServer(rootDir string) (*testserver.Carbon, error) {
 	}
 
 	return ts, nil
-}
-
-func startServer(execFilename string, arg ...string) (*exec.Cmd, error) {
-	path, err := exec.LookPath(execFilename)
-	if err != nil {
-		return nil, fmt.Errorf("executable %q not found in $PATH", execFilename)
-	}
-	cmd := exec.Command(path, arg...)
-	err = cmd.Start()
-	if err != nil {
-		return nil, err
-	}
-	return cmd, nil
 }
 
 func fetchAndVerifyMetrics(t *testing.T, testName string, carbonserverPort int, now time.Time, step time.Duration, messages []sender.Message) {
