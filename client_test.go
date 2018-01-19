@@ -3,6 +3,7 @@ package carbonx_test
 import (
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"testing"
@@ -44,7 +45,7 @@ func TestSendTCP(t *testing.T) {
 			},
 		}
 
-		s, err := sender.NewTCP(fmt.Sprintf("127.0.0.1:%d", ts.TcpPort))
+		s, err := sender.NewTCP(ts.TcpListen)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -53,7 +54,7 @@ func TestSendTCP(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		fetchAndVerifyMetrics(t, "TestSendTCP", ts.CarbonserverPort, now, step, metrics)
+		fetchAndVerifyMetrics(t, "TestSendTCP", ts.CarbonserverListen, now, step, metrics)
 	}()
 	ts.Wait()
 }
@@ -87,7 +88,7 @@ func TestSendPickle(t *testing.T) {
 			},
 		}
 
-		s, err := sender.NewPickle(fmt.Sprintf("127.0.0.1:%d", ts.PicklePort))
+		s, err := sender.NewPickle(ts.PickleListen)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -96,7 +97,7 @@ func TestSendPickle(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		fetchAndVerifyMetrics(t, "TestSendPickle", ts.CarbonserverPort, now, step, metrics)
+		fetchAndVerifyMetrics(t, "TestSendPickle", ts.CarbonserverListen, now, step, metrics)
 	}()
 	ts.Wait()
 }
@@ -107,10 +108,10 @@ func startCarbonServer(rootDir string) (*testserver.Carbon, error) {
 		return nil, err
 	}
 	ts := &testserver.Carbon{
-		RootDir:          rootDir,
-		TcpPort:          ports[0],
-		PicklePort:       ports[1],
-		CarbonserverPort: ports[2],
+		RootDir:            rootDir,
+		TcpListen:          fmt.Sprintf("127.0.0.1:%d", ports[0]),
+		PickleListen:       fmt.Sprintf("127.0.0.1:%d", ports[1]),
+		CarbonserverListen: fmt.Sprintf("127.0.0.1:%d", ports[2]),
 		Schemas: []testserver.SchemaConfig{
 			{
 				Name:       "default",
@@ -133,11 +134,11 @@ func startCarbonServer(rootDir string) (*testserver.Carbon, error) {
 		return nil, err
 	}
 
-	err = testserver.WaitPortConnectable(fmt.Sprintf("127.0.0.1:%d", ts.TcpPort), 5, 100*time.Millisecond)
+	err = testserver.WaitPortConnectable(convertListenToConnect(ts.TcpListen), 5, 100*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
-	err = testserver.WaitPortConnectable(fmt.Sprintf("127.0.0.1:%d", ts.PicklePort), 5, 100*time.Millisecond)
+	err = testserver.WaitPortConnectable(convertListenToConnect(ts.PickleListen), 5, 100*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
@@ -145,9 +146,20 @@ func startCarbonServer(rootDir string) (*testserver.Carbon, error) {
 	return ts, nil
 }
 
-func fetchAndVerifyMetrics(t *testing.T, testName string, carbonserverPort int, now time.Time, step time.Duration, messages []sender.Message) {
+func convertListenToConnect(listenAddr string) string {
+	host, port, err := net.SplitHostPort(listenAddr)
+	if err != nil {
+		panic(err)
+	}
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	return net.JoinHostPort(host, port)
+}
+
+func fetchAndVerifyMetrics(t *testing.T, testName string, carbonserverListen string, now time.Time, step time.Duration, messages []sender.Message) {
 	c, err := carbonx.NewClient(
-		fmt.Sprintf("http://127.0.0.1:%d", carbonserverPort),
+		fmt.Sprintf("http://%s", convertListenToConnect(carbonserverListen)),
 		&http.Client{Timeout: 5 * time.Second})
 	if err != nil {
 		t.Fatal(err)

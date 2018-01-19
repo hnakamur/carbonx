@@ -13,12 +13,12 @@ import (
 )
 
 type Carbon struct {
-	RootDir          string
-	TcpPort          int
-	PicklePort       int
-	CarbonserverPort int
-	Schemas          []SchemaConfig
-	Aggregations     []AggregationConfig
+	RootDir            string
+	TcpListen          string
+	PickleListen       string
+	CarbonserverListen string
+	Schemas            []SchemaConfig
+	Aggregations       []AggregationConfig
 
 	app *carbon.App
 	cmd *exec.Cmd
@@ -94,20 +94,20 @@ func (s *Carbon) writeCarbonConfigFile() error {
 		},
 	}
 
-	if s.TcpPort != 0 {
-		cfg.Tcp.Listen = fmt.Sprintf("127.0.0.1:%d", s.TcpPort)
+	if s.TcpListen != "" {
+		cfg.Tcp.Listen = s.TcpListen
 		cfg.Tcp.Enabled = true
 	} else {
 		cfg.Tcp.Enabled = false
 	}
-	if s.PicklePort != 0 {
-		cfg.Pickle.Listen = fmt.Sprintf("127.0.0.1:%d", s.PicklePort)
+	if s.PickleListen != "" {
+		cfg.Pickle.Listen = s.PickleListen
 		cfg.Pickle.Enabled = true
 	} else {
 		cfg.Pickle.Enabled = false
 	}
-	if s.CarbonserverPort != 0 {
-		cfg.Carbonserver.Listen = fmt.Sprintf("127.0.0.1:%d", s.CarbonserverPort)
+	if s.CarbonserverListen != "" {
+		cfg.Carbonserver.Listen = s.CarbonserverListen
 		cfg.Carbonserver.Enabled = true
 	} else {
 		cfg.Carbonserver.Enabled = false
