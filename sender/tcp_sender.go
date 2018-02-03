@@ -48,7 +48,12 @@ func (s *TCPSender) Connect() error {
 }
 
 func (s *TCPSender) Close() error {
-	return s.conn.Close()
+	err := s.conn.Close()
+	if err != nil {
+		return err
+	}
+	s.conn = nil
+	return nil
 }
 
 func (s *TCPSender) Send(metrics []*pb.Metric) error {
