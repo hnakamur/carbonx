@@ -4,11 +4,11 @@ import (
 	"encoding/binary"
 	"strconv"
 
-	pbc "github.com/lomik/go-carbon/helper/carbonpb"
+	"github.com/lomik/go-carbon/helper/carbonpb"
 )
 
 type MetricsMarshaler interface {
-	Marshal(metrics []*pbc.Metric) ([]byte, error)
+	Marshal(metrics []*carbonpb.Metric) ([]byte, error)
 }
 
 type TextMetricsMarshaler struct{}
@@ -17,7 +17,7 @@ func NewTextMetricsMarshaler() *TextMetricsMarshaler {
 	return &TextMetricsMarshaler{}
 }
 
-func (m *TextMetricsMarshaler) Marshal(metrics []*pbc.Metric) ([]byte, error) {
+func (m *TextMetricsMarshaler) Marshal(metrics []*carbonpb.Metric) ([]byte, error) {
 	var data []byte
 	for _, m := range metrics {
 		for _, p := range m.Points {
@@ -38,8 +38,8 @@ func NewProtobuf3MetricsMarshaler() *Protobuf3MetricsMarshaler {
 	return &Protobuf3MetricsMarshaler{}
 }
 
-func (m *Protobuf3MetricsMarshaler) Marshal(metrics []*pbc.Metric) ([]byte, error) {
-	payload := pbc.Payload{Metrics: metrics}
+func (m *Protobuf3MetricsMarshaler) Marshal(metrics []*carbonpb.Metric) ([]byte, error) {
+	payload := carbonpb.Payload{Metrics: metrics}
 	data, err := payload.Marshal()
 	if err != nil {
 		return nil, err

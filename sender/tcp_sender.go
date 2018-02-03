@@ -4,12 +4,13 @@ import (
 	"net"
 
 	"github.com/hnakamur/netutil"
-	pbc "github.com/lomik/go-carbon/helper/carbonpb"
+	"github.com/lomik/go-carbon/helper/carbonpb"
 )
 
 type TCPSender struct {
 	sendToAddress string
 	marshaler     MetricsMarshaler
+	conn          net.Conn
 }
 
 func NewTCPSender(sendToAddress string, marshaler MetricsMarshaler) (*TCPSender, error) {
@@ -23,17 +24,34 @@ func NewTCPSender(sendToAddress string, marshaler MetricsMarshaler) (*TCPSender,
 	}, nil
 }
 
-func (s *TCPSender) Send(metrics []*pbc.Metric) error {
+func (s *TCPSender) Connect() error {
 	conn, err := net.Dial("tcp", s.sendToAddress)
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	s.conn = conn
+	return nil
+}
 
+func (s *TCPSender) Close() error {
+	return s.conn.Close()
+}
+
+func (s *TCPSender) Send(metrics []*carbonpb.Metric) error {
 	data, err := s.marshaler.Marshal(metrics)
 	if err != nil {
 		return err
 	}
-	_, err = conn.Write(data)
+	_, err = s.conn.Write(data)
 	return err
+}
+
+func (s *TCPSender) ConnectSendClose(metrics []*carbonpb.Metric) error {
+	err := s.Connect()
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+
+	return s.Send(metrics)
 }

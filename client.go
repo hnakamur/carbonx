@@ -8,13 +8,10 @@ import (
 	"net/url"
 	"time"
 
-	pbz "github.com/go-graphite/carbonzipper/carbonzipperpb3"
+	"github.com/go-graphite/carbonzipper/carbonzipperpb3"
 )
 
 var ErrNotFound = errors.New("not found")
-
-type InfoResponse = pbz.InfoResponse
-type FetchResponse = pbz.FetchResponse
 
 type Client struct {
 	serverURL  *url.URL
@@ -32,7 +29,7 @@ func NewClient(serverURL string, httpClient *http.Client) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) GetMetricInfo(name string) (*InfoResponse, error) {
+func (c *Client) GetMetricInfo(name string) (*carbonzipperpb3.InfoResponse, error) {
 	u := url.URL{
 		Scheme:   c.serverURL.Scheme,
 		Host:     c.serverURL.Host,
@@ -52,7 +49,7 @@ func (c *Client) GetMetricInfo(name string) (*InfoResponse, error) {
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		info := &pbz.InfoResponse{}
+		info := &carbonzipperpb3.InfoResponse{}
 		err = info.Unmarshal(data)
 		if err != nil {
 			return nil, err
@@ -65,7 +62,7 @@ func (c *Client) GetMetricInfo(name string) (*InfoResponse, error) {
 	}
 }
 
-func (c *Client) FetchData(name string, from, until time.Time) (*FetchResponse, error) {
+func (c *Client) FetchData(name string, from, until time.Time) (*carbonzipperpb3.FetchResponse, error) {
 	u := url.URL{
 		Scheme:   c.serverURL.Scheme,
 		Host:     c.serverURL.Host,
@@ -85,7 +82,7 @@ func (c *Client) FetchData(name string, from, until time.Time) (*FetchResponse, 
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		result := &pbz.MultiFetchResponse{}
+		result := &carbonzipperpb3.MultiFetchResponse{}
 		err = result.Unmarshal(data)
 		if err != nil {
 			return nil, err

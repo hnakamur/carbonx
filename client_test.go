@@ -11,12 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-graphite/carbonzipper/carbonzipperpb3"
 	"github.com/hnakamur/carbonx"
 	"github.com/hnakamur/carbonx/sender"
 	"github.com/hnakamur/carbonx/testserver"
 	"github.com/hnakamur/freeport"
 	"github.com/hnakamur/netutil"
-	pbc "github.com/lomik/go-carbon/helper/carbonpb"
+	"github.com/lomik/go-carbon/helper/carbonpb"
 	retry "github.com/rafaeljesus/retry-go"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
@@ -38,10 +39,10 @@ func TestSendTCP(t *testing.T) {
 		metricName := "test.access-count"
 		step := time.Second
 		now := time.Now().Truncate(step)
-		metrics := []*pbc.Metric{
+		metrics := []*carbonpb.Metric{
 			{
 				Metric: metricName,
-				Points: []pbc.Point{
+				Points: []carbonpb.Point{
 					{
 						Timestamp: uint32(now.Unix()),
 						Value:     3.14159,
@@ -56,7 +57,7 @@ func TestSendTCP(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = s.Send(metrics)
+		err = s.ConnectSendClose(metrics)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -84,10 +85,10 @@ func TestSendProtobuf(t *testing.T) {
 		metricName := "test.access-count"
 		step := time.Second
 		now := time.Now().Truncate(step)
-		metrics := []*pbc.Metric{
+		metrics := []*carbonpb.Metric{
 			{
 				Metric: metricName,
-				Points: []pbc.Point{
+				Points: []carbonpb.Point{
 					{
 						Timestamp: uint32(now.Unix()),
 						Value:     3.14159,
@@ -102,7 +103,7 @@ func TestSendProtobuf(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = s.Send(metrics)
+		err = s.ConnectSendClose(metrics)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,7 +171,7 @@ func convertListenToConnect(listenAddr string) string {
 	return net.JoinHostPort(host, strconv.Itoa(port))
 }
 
-func fetchAndVerifyMetrics(t *testing.T, testName string, carbonserverListen string, now time.Time, step time.Duration, metrics []*pbc.Metric) {
+func fetchAndVerifyMetrics(t *testing.T, testName string, carbonserverListen string, now time.Time, step time.Duration, metrics []*carbonpb.Metric) {
 	u := url.URL{Scheme: "http", Host: convertListenToConnect(carbonserverListen)}
 	c, err := carbonx.NewClient(
 		u.String(),
@@ -180,7 +181,7 @@ func fetchAndVerifyMetrics(t *testing.T, testName string, carbonserverListen str
 	}
 
 	for i, m := range metrics {
-		var info *carbonx.InfoResponse
+		var info *carbonzipperpb3.InfoResponse
 		attempts := 5
 		sleepTime := 100 * time.Millisecond
 		err = retry.Do(func() error {
@@ -210,15 +211,15 @@ func fetchAndVerifyMetrics(t *testing.T, testName string, carbonserverListen str
 	}
 }
 
-func convertFetchResponseToMetric(resp *carbonx.FetchResponse) *pbc.Metric {
-	m := &pbc.Metric{
+func convertFetchResponseToMetric(resp *carbonzipperpb3.FetchResponse) *carbonpb.Metric {
+	m := &carbonpb.Metric{
 		Metric: resp.Name,
 	}
 	for i, v := range resp.Values {
 		if resp.IsAbsent[i] {
 			continue
 		}
-		m.Points = append(m.Points, pbc.Point{
+		m.Points = append(m.Points, carbonpb.Point{
 			Timestamp: uint32(resp.StartTime) + uint32(i)*uint32(resp.StepTime),
 			Value:     v,
 		})
@@ -226,7 +227,7 @@ func convertFetchResponseToMetric(resp *carbonx.FetchResponse) *pbc.Metric {
 	return m
 }
 
-func formatMetric(m *pbc.Metric) string {
+func formatMetric(m *carbonpb.Metric) string {
 	var b []byte
 	b = append(b, "Metric{Metric:"...)
 	b = append(b, m.Metric...)
