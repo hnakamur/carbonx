@@ -4,8 +4,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/hnakamur/carbonx/pb"
 	"github.com/hnakamur/netutil"
-	"github.com/lomik/go-carbon/helper/carbonpb"
 	retry "github.com/rafaeljesus/retry-go"
 )
 
@@ -51,7 +51,7 @@ func (s *TCPSender) Close() error {
 	return s.conn.Close()
 }
 
-func (s *TCPSender) Send(metrics []*carbonpb.Metric) error {
+func (s *TCPSender) Send(metrics []*pb.Metric) error {
 	return retry.Do(func() error {
 		data, err := s.marshaler.Marshal(metrics)
 		if err != nil {
@@ -62,7 +62,7 @@ func (s *TCPSender) Send(metrics []*carbonpb.Metric) error {
 	}, s.retryConfig.SendAttempts, s.retryConfig.SendSleepTime)
 }
 
-func (s *TCPSender) ConnectSendClose(metrics []*carbonpb.Metric) error {
+func (s *TCPSender) ConnectSendClose(metrics []*pb.Metric) error {
 	err := s.Connect()
 	if err != nil {
 		return err

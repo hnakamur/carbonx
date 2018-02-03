@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-graphite/carbonzipper/carbonzipperpb3"
+	"github.com/hnakamur/carbonx/pb"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -29,7 +30,7 @@ func NewClient(serverURL string, httpClient *http.Client) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) GetMetricInfo(name string) (*carbonzipperpb3.InfoResponse, error) {
+func (c *Client) GetMetricInfo(name string) (*pb.InfoResponse, error) {
 	u := url.URL{
 		Scheme:   c.serverURL.Scheme,
 		Host:     c.serverURL.Host,
@@ -49,7 +50,7 @@ func (c *Client) GetMetricInfo(name string) (*carbonzipperpb3.InfoResponse, erro
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		info := &carbonzipperpb3.InfoResponse{}
+		info := &pb.InfoResponse{}
 		err = info.Unmarshal(data)
 		if err != nil {
 			return nil, err
@@ -62,7 +63,7 @@ func (c *Client) GetMetricInfo(name string) (*carbonzipperpb3.InfoResponse, erro
 	}
 }
 
-func (c *Client) FetchData(name string, from, until time.Time) (*carbonzipperpb3.FetchResponse, error) {
+func (c *Client) FetchData(name string, from, until time.Time) (*pb.FetchResponse, error) {
 	u := url.URL{
 		Scheme:   c.serverURL.Scheme,
 		Host:     c.serverURL.Host,
