@@ -15,7 +15,7 @@ import (
 type Carbon struct {
 	RootDir            string
 	TcpListen          string
-	PickleListen       string
+	ProtobufListen     string
 	CarbonserverListen string
 	Schemas            []SchemaConfig
 	Aggregations       []AggregationConfig
@@ -79,6 +79,7 @@ func (s *Carbon) writeCarbonConfigFile() error {
 	cfg := NewConfig()
 	cfg.Common.User = u.Username
 	cfg.Udp.Enabled = false
+	cfg.Pickle.Enabled = false
 	cfg.Grpc.Enabled = false
 	cfg.Carbonlink.Enabled = false
 	cfg.Whisper.DataDir = s.dataDirname()
@@ -100,11 +101,13 @@ func (s *Carbon) writeCarbonConfigFile() error {
 	} else {
 		cfg.Tcp.Enabled = false
 	}
-	if s.PickleListen != "" {
-		cfg.Pickle.Listen = s.PickleListen
-		cfg.Pickle.Enabled = true
-	} else {
-		cfg.Pickle.Enabled = false
+	if s.ProtobufListen != "" {
+		cfg.Receiver = map[string](map[string]interface{}){
+			"protobuf": {
+				"protocol": "protobuf",
+				"listen":   s.ProtobufListen,
+			},
+		}
 	}
 	if s.CarbonserverListen != "" {
 		cfg.Carbonserver.Listen = s.CarbonserverListen
@@ -137,6 +140,7 @@ func (s *Carbon) setup() error {
 	if err != nil {
 		return err
 	}
+
 	err = schemasConfig(s.Schemas).writeFile(s.schemasFilename())
 	if err != nil {
 		return err

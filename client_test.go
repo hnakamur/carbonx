@@ -5,13 +5,18 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/hnakamur/carbonx"
 	"github.com/hnakamur/carbonx/sender"
 	"github.com/hnakamur/carbonx/testserver"
+	"github.com/hnakamur/freeport"
+	"github.com/hnakamur/netutil"
+	pbc "github.com/lomik/go-carbon/helper/carbonpb"
 	retry "github.com/rafaeljesus/retry-go"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
@@ -33,19 +38,21 @@ func TestSendTCP(t *testing.T) {
 		metricName := "test.access-count"
 		step := time.Second
 		now := time.Now().Truncate(step)
-		metrics := []sender.Message{
+		metrics := []*pbc.Metric{
 			{
-				Name: metricName,
-				Points: []sender.DataPoint{
+				Metric: metricName,
+				Points: []pbc.Point{
 					{
-						Timestamp: now.Unix(),
+						Timestamp: uint32(now.Unix()),
 						Value:     3.14159,
 					},
 				},
 			},
 		}
 
-		s, err := sender.NewTCP(ts.TcpListen)
+		s, err := sender.NewTCPSender(
+			convertListenToConnect(ts.TcpListen),
+			sender.NewTextMetricsMarshaler())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -54,12 +61,13 @@ func TestSendTCP(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		fetchAndVerifyMetrics(t, "TestSendTCP", ts.CarbonserverListen, now, step, metrics)
+		fetchAndVerifyMetrics(t, "TestSendTCP",
+			convertListenToConnect(ts.CarbonserverListen), now, step, metrics)
 	}()
 	ts.Wait()
 }
 
-func TestSendPickle(t *testing.T) {
+func TestSendProtobuf(t *testing.T) {
 	rootDir, err := ioutil.TempDir("", "carbontest")
 	if err != nil {
 		t.Fatal(err)
@@ -76,19 +84,21 @@ func TestSendPickle(t *testing.T) {
 		metricName := "test.access-count"
 		step := time.Second
 		now := time.Now().Truncate(step)
-		metrics := []sender.Message{
+		metrics := []*pbc.Metric{
 			{
-				Name: metricName,
-				Points: []sender.DataPoint{
+				Metric: metricName,
+				Points: []pbc.Point{
 					{
-						Timestamp: now.Unix(),
+						Timestamp: uint32(now.Unix()),
 						Value:     3.14159,
 					},
 				},
 			},
 		}
 
-		s, err := sender.NewPickle(ts.PickleListen)
+		s, err := sender.NewTCPSender(
+			convertListenToConnect(ts.ProtobufListen),
+			sender.NewProtobuf3MetricsMarshaler())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -97,20 +107,21 @@ func TestSendPickle(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		fetchAndVerifyMetrics(t, "TestSendPickle", ts.CarbonserverListen, now, step, metrics)
+		fetchAndVerifyMetrics(t, "TestSendProtobuf",
+			convertListenToConnect(ts.CarbonserverListen), now, step, metrics)
 	}()
 	ts.Wait()
 }
 
 func startCarbonServer(rootDir string) (*testserver.Carbon, error) {
-	ports, err := testserver.GetFreePorts(3)
+	ports, err := freeport.GetFreePorts(3)
 	if err != nil {
 		return nil, err
 	}
 	ts := &testserver.Carbon{
 		RootDir:            rootDir,
 		TcpListen:          fmt.Sprintf("127.0.0.1:%d", ports[0]),
-		PickleListen:       fmt.Sprintf("127.0.0.1:%d", ports[1]),
+		ProtobufListen:     fmt.Sprintf("127.0.0.1:%d", ports[1]),
 		CarbonserverListen: fmt.Sprintf("127.0.0.1:%d", ports[2]),
 		Schemas: []testserver.SchemaConfig{
 			{
@@ -134,11 +145,13 @@ func startCarbonServer(rootDir string) (*testserver.Carbon, error) {
 		return nil, err
 	}
 
-	err = testserver.WaitPortConnectable(convertListenToConnect(ts.TcpListen), 5, 100*time.Millisecond)
+	err = testserver.WaitPortConnectable(
+		convertListenToConnect(ts.TcpListen), 5, 100*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
-	err = testserver.WaitPortConnectable(convertListenToConnect(ts.PickleListen), 5, 100*time.Millisecond)
+	err = testserver.WaitPortConnectable(
+		convertListenToConnect(ts.ProtobufListen), 5, 100*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}
@@ -147,48 +160,49 @@ func startCarbonServer(rootDir string) (*testserver.Carbon, error) {
 }
 
 func convertListenToConnect(listenAddr string) string {
-	host, port, err := net.SplitHostPort(listenAddr)
+	host, port, err := netutil.SplitHostPort(listenAddr)
 	if err != nil {
 		panic(err)
 	}
 	if host == "" {
 		host = "127.0.0.1"
 	}
-	return net.JoinHostPort(host, port)
+	return net.JoinHostPort(host, strconv.Itoa(port))
 }
 
-func fetchAndVerifyMetrics(t *testing.T, testName string, carbonserverListen string, now time.Time, step time.Duration, messages []sender.Message) {
+func fetchAndVerifyMetrics(t *testing.T, testName string, carbonserverListen string, now time.Time, step time.Duration, metrics []*pbc.Metric) {
+	u := url.URL{Scheme: "http", Host: convertListenToConnect(carbonserverListen)}
 	c, err := carbonx.NewClient(
-		fmt.Sprintf("http://%s", convertListenToConnect(carbonserverListen)),
+		u.String(),
 		&http.Client{Timeout: 5 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for i, message := range messages {
+	for i, m := range metrics {
 		var info *carbonx.InfoResponse
 		attempts := 5
 		sleepTime := 100 * time.Millisecond
 		err = retry.Do(func() error {
 			var err error
-			info, err = c.GetMetricInfo(message.Name)
+			info, err = c.GetMetricInfo(m.Metric)
 			return err
 		}, attempts, sleepTime)
 		if err != nil {
 			t.Fatal(err)
 		}
-		// log.Printf("%s metricInfo=%+v", testName, info)
+		//log.Printf("%s metricInfo=%+v", testName, info)
 
 		from := now.Add(-step)
 		until := from
-		data, err := c.FetchData(message.Name, from, until)
+		data, err := c.FetchData(m.Metric, from, until)
 		if err != nil {
 			t.Fatal(err)
 		}
-		// log.Printf("%s data=%+v", testName, data)
+		//log.Printf("%s data=%+v", testName, data)
 
-		got := formatMessage(convertFetchResponseToMessage(data))
-		want := formatMessage(&message)
+		got := formatMetric(convertFetchResponseToMetric(data))
+		want := formatMetric(m)
 		if got != want {
 			t.Errorf("%s: unexptected fetch result,\nmessageIndex=%d,\ngot =%s,\nwant=%s,\ndiff=%s",
 				testName, i, got, want, diff(got, want))
@@ -196,26 +210,26 @@ func fetchAndVerifyMetrics(t *testing.T, testName string, carbonserverListen str
 	}
 }
 
-func convertFetchResponseToMessage(resp *carbonx.FetchResponse) *sender.Message {
-	msg := &sender.Message{
-		Name: resp.Name,
+func convertFetchResponseToMetric(resp *carbonx.FetchResponse) *pbc.Metric {
+	m := &pbc.Metric{
+		Metric: resp.Name,
 	}
 	for i, v := range resp.Values {
 		if resp.IsAbsent[i] {
 			continue
 		}
-		msg.Points = append(msg.Points, sender.DataPoint{
-			Timestamp: int64(resp.StartTime) + int64(i)*int64(resp.StepTime),
+		m.Points = append(m.Points, pbc.Point{
+			Timestamp: uint32(resp.StartTime) + uint32(i)*uint32(resp.StepTime),
 			Value:     v,
 		})
 	}
-	return msg
+	return m
 }
 
-func formatMessage(m *sender.Message) string {
+func formatMetric(m *pbc.Metric) string {
 	var b []byte
-	b = append(b, "Message{Name:"...)
-	b = append(b, m.Name...)
+	b = append(b, "Metric{Metric:"...)
+	b = append(b, m.Metric...)
 	b = append(b, ", Points:"...)
 	for i, p := range m.Points {
 		if i > 0 {
