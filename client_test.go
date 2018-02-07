@@ -1,4 +1,4 @@
-package carbonx_test
+package carbonx
 
 import (
 	"fmt"
@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/go-graphite/carbonzipper/carbonzipperpb3"
-	"github.com/hnakamur/carbonx"
 	"github.com/hnakamur/carbonx/sender"
 	"github.com/hnakamur/carbonx/testserver"
 	"github.com/hnakamur/freeport"
@@ -185,7 +184,7 @@ func convertListenToConnect(listenAddr string) string {
 
 func fetchAndVerifyMetrics(t *testing.T, testName string, carbonserverListen string, now time.Time, step time.Duration, metrics []*carbonpb.Metric) {
 	u := url.URL{Scheme: "http", Host: convertListenToConnect(carbonserverListen)}
-	c, err := carbonx.NewClient(
+	c, err := NewClient(
 		u.String(),
 		&http.Client{Timeout: 5 * time.Second})
 	if err != nil {
@@ -221,22 +220,6 @@ func fetchAndVerifyMetrics(t *testing.T, testName string, carbonserverListen str
 				testName, i, got, want, diff(got, want))
 		}
 	}
-}
-
-func convertFetchResponseToMetric(resp *carbonzipperpb3.FetchResponse) *carbonpb.Metric {
-	m := &carbonpb.Metric{
-		Metric: resp.Name,
-	}
-	for i, v := range resp.Values {
-		if resp.IsAbsent[i] {
-			continue
-		}
-		m.Points = append(m.Points, carbonpb.Point{
-			Timestamp: uint32(resp.StartTime) + uint32(i)*uint32(resp.StepTime),
-			Value:     v,
-		})
-	}
-	return m
 }
 
 func formatMetric(m *carbonpb.Metric) string {
