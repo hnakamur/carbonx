@@ -52,13 +52,7 @@ func TestSendTCP(t *testing.T) {
 
 		s, err := sender.NewTCPSender(
 			convertListenToConnect(ts.TcpListen),
-			sender.NewTextMetricsMarshaler(),
-			sender.RetryConfig{
-				ConnectAttempts:  3,
-				ConnectSleepTime: 100 * time.Millisecond,
-				SendAttempts:     3,
-				SendSleepTime:    100 * time.Millisecond,
-			})
+			sender.NewTextMetricsMarshaler())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -104,13 +98,7 @@ func TestSendProtobuf(t *testing.T) {
 
 		s, err := sender.NewTCPSender(
 			convertListenToConnect(ts.ProtobufListen),
-			sender.NewProtobuf3MetricsMarshaler(),
-			sender.RetryConfig{
-				ConnectAttempts:  3,
-				ConnectSleepTime: 100 * time.Millisecond,
-				SendAttempts:     3,
-				SendSleepTime:    100 * time.Millisecond,
-			})
+			sender.NewProtobuf3MetricsMarshaler())
 		if err != nil {
 			t.Fatal(err)
 		}
