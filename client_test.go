@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-graphite/carbonzipper/carbonzipperpb3"
 	"github.com/hnakamur/carbonx/carbonpb"
+	"github.com/hnakamur/carbonx/carbonzipperpb3"
 	"github.com/hnakamur/carbonx/sender"
 	"github.com/hnakamur/carbonx/testserver"
 	"github.com/hnakamur/freeport"

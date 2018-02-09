@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/go-graphite/carbonzipper/carbonzipperpb3"
+	"github.com/hnakamur/carbonx/carbonzipperpb3"
 )
 
 var ErrNotFound = errors.New("not found")

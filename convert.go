@@ -3,8 +3,8 @@ package carbonx
 import (
 	"fmt"
 
-	"github.com/go-graphite/carbonzipper/carbonzipperpb3"
 	"github.com/hnakamur/carbonx/carbonpb"
+	"github.com/hnakamur/carbonx/carbonzipperpb3"
 )
 
 func convertFetchResponseToMetric(r *carbonzipperpb3.FetchResponse) *carbonpb.Metric {
