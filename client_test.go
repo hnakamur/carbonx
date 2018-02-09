@@ -51,7 +51,7 @@ func TestSendTCP(t *testing.T) {
 		}
 
 		s, err := sender.NewTCPSender(
-			convertListenToConnect(ts.TcpListen),
+			convertListenToConnect(ts.TCPListen),
 			sender.NewTextMetricsMarshaler())
 		if err != nil {
 			t.Fatal(err)
@@ -120,7 +120,7 @@ func startCarbonServer(rootDir string) (*testserver.Carbon, error) {
 	}
 	ts := &testserver.Carbon{
 		RootDir:            rootDir,
-		TcpListen:          fmt.Sprintf("127.0.0.1:%d", ports[0]),
+		TCPListen:          fmt.Sprintf("127.0.0.1:%d", ports[0]),
 		ProtobufListen:     fmt.Sprintf("127.0.0.1:%d", ports[1]),
 		CarbonserverListen: fmt.Sprintf("127.0.0.1:%d", ports[2]),
 		Schemas: []testserver.SchemaConfig{
@@ -146,7 +146,7 @@ func startCarbonServer(rootDir string) (*testserver.Carbon, error) {
 	}
 
 	err = testserver.WaitTCPPortConnectable(
-		convertListenToConnect(ts.TcpListen), 5, 100*time.Millisecond)
+		convertListenToConnect(ts.TCPListen), 5, 100*time.Millisecond)
 	if err != nil {
 		return nil, err
 	}

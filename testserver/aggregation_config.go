@@ -1,10 +1,20 @@
 package testserver
 
 import (
-	"fmt"
-
-	"github.com/alyu/configparser"
+	"html/template"
+	"io"
+	"os"
 )
+
+const aggregationConfigTmpl = `{{range . -}}
+[{{.Name}}]
+pattern = {{.Pattern}}
+xFilesFactor = {{.XFilesFactor}}
+aggregationMethod = {{.AggregationMethod}}
+{{end -}}
+`
+
+type aggregationsConfig []AggregationConfig
 
 type AggregationConfig struct {
 	Name              string
@@ -13,15 +23,16 @@ type AggregationConfig struct {
 	AggregationMethod string
 }
 
-type aggregationsConfig []AggregationConfig
+func (c aggregationsConfig) writeTo(w io.Writer) error {
+	tmpl := template.Must(template.New("aggregationConfig").Parse(aggregationConfigTmpl))
+	return tmpl.Execute(w, c)
+}
 
 func (c aggregationsConfig) writeFile(filename string) error {
-	cfg := configparser.NewConfiguration()
-	for _, a := range []AggregationConfig(c) {
-		sec := cfg.NewSection(a.Name)
-		sec.Add("pattern", a.Pattern)
-		sec.Add("xFilesFactor", fmt.Sprintf("%g", a.XFilesFactor))
-		sec.Add("aggregationMethod", a.AggregationMethod)
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
 	}
-	return configparser.Save(cfg, filename)
+	defer file.Close()
+	return c.writeTo(file)
 }

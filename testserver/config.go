@@ -1,232 +1,206 @@
 package testserver
 
 import (
-	"time"
-
-	"github.com/BurntSushi/toml"
-	"github.com/lomik/go-carbon/persister"
-	"github.com/lomik/go-carbon/receiver/tcp"
-	"github.com/lomik/go-carbon/receiver/udp"
-	"github.com/lomik/zapwriter"
+	"html/template"
+	"io"
+	"os"
+	"os/user"
+	"path/filepath"
+	"runtime"
 )
 
-const MetricEndpointLocal = "local"
+const carbonConfigTmpl = `[common]
+# Run as user. Works only in daemon mode
+user = "{{.User}}"
+# Prefix for store all internal go-carbon graphs. Supported macroses: {host}
+graph-prefix = "carbon.agents.{host}"
+# Endpoint for store internal carbon metrics. Valid values: "" or "local", "tcp://host:port", "udp://host:port"
+metric-endpoint = "local"
+# Interval of storing internal metrics. Like CARBON_METRIC_INTERVAL
+metric-interval = "1m0s"
+# Increase for configuration with multi persister workers
+max-cpu = {{.MaxCPU}}
 
-// Duration wrapper time.Duration for TOML
-type Duration struct {
-	time.Duration
-}
+[whisper]
+data-dir = "{{.DataDir}}"
+# http://graphite.readthedocs.org/en/latest/config-carbon.html#storage-schemas-conf. Required
+schemas-file = "{{.SchemasFile}}"
+# http://graphite.readthedocs.org/en/latest/config-carbon.html#storage-aggregation-conf. Optional
+aggregation-file = "{{.AggregationFile}}"
+# Worker threads count. Metrics sharded by "crc32(metricName) % workers"
+workers = 8
+# Limits the number of whisper update_many() calls per second. 0 - no limit
+max-updates-per-second = 0
+# Sparse file creation
+sparse-create = false
+enabled = true
 
-var _ toml.TextMarshaler = &Duration{}
+[cache]
+# Limit of in-memory stored points (not metrics)
+max-size = 1000000
+# Capacity of queue between receivers and cache
+# Strategy to persist metrics. Values: "max","sorted","noop"
+#   "max" - write metrics with most unwritten datapoints first
+#   "sorted" - sort by timestamp of first unwritten datapoint.
+#   "noop" - pick metrics to write in unspecified order,
+#            requires least CPU and improves cache responsiveness
+write-strategy = "max"
 
-// UnmarshalText from TOML
-func (d *Duration) UnmarshalText(text []byte) error {
-	var err error
-	d.Duration, err = time.ParseDuration(string(text))
-	return err
-}
+[udp]
+listen = ":2003"
+enabled = false
+# Enable optional logging of incomplete messages (chunked by max UDP packet size)
+log-incomplete = false
+# Optional internal queue between receiver and cache
+buffer-size = 0
 
-// MarshalText encode text with TOML format
-func (d *Duration) MarshalText() ([]byte, error) {
-	return []byte(d.Duration.String()), nil
-}
+[tcp]
+listen = "{{.TCPListen}}"
+enabled = {{if ne .TCPListen ""}}true{{else}}false{{end}}
+# Optional internal queue between receiver and cache
+buffer-size = 0
 
-// Value return time.Duration value
-func (d *Duration) Value() time.Duration {
-	return d.Duration
-}
+[pickle]
+listen = ":2004"
+# Limit message size for prevent memory overflow
+max-message-size = 67108864
+enabled = false
+# Optional internal queue between receiver and cache
+buffer-size = 0
 
-type commonConfig struct {
-	User           string    `toml:"user"`
-	Logfile        *string   `toml:"logfile"`
-	LogLevel       *string   `toml:"log-level"`
-	GraphPrefix    string    `toml:"graph-prefix"`
-	MetricInterval *Duration `toml:"metric-interval"`
-	MetricEndpoint string    `toml:"metric-endpoint"`
-	MaxCPU         int       `toml:"max-cpu"`
-}
+{{if ne .ProtobufListen ""}}
+[receiver.protobuf]
+listen = "{{.ProtobufListen}}"
+protocol = "protobuf"
+{{end}}
 
-type whisperConfig struct {
-	DataDir             string `toml:"data-dir"`
-	SchemasFilename     string `toml:"schemas-file"`
-	AggregationFilename string `toml:"aggregation-file"`
-	Workers             int    `toml:"workers"`
-	MaxUpdatesPerSecond int    `toml:"max-updates-per-second"`
-	Sparse              bool   `toml:"sparse-create"`
-	FLock               bool   `toml:"flock"`
-	Enabled             bool   `toml:"enabled"`
-	Schemas             persister.WhisperSchemas
-	Aggregation         *persister.WhisperAggregation
-}
+[carbonlink]
+listen = "127.0.0.1:7002"
+enabled = false
+# Close inactive connections after "read-timeout"
+read-timeout = "30s"
 
-type cacheConfig struct {
-	MaxSize       uint32 `toml:"max-size"`
-	WriteStrategy string `toml:"write-strategy"`
-}
+[carbonserver]
+# Please NOTE: carbonserver is not intended to fully replace graphite-web
+# It acts as a "REMOTE_STORAGE" for graphite-web or carbonzipper/carbonapi
+listen = "{{.CarbonserverListen}}"
+# Carbonserver support is still experimental and may contain bugs
+# Or be incompatible with github.com/grobian/carbonserver
+enabled = {{if ne .CarbonserverListen ""}}true{{else}}false{{end}}
+# Buckets to track response times
+buckets = 10
+# carbonserver-specific metrics will be sent as counters
+# For compatibility with grobian/carbonserver
+metrics-as-counters = false
+# Read and Write timeouts for HTTP server
+read-timeout = "60s"
+write-timeout = "60s"
+# Enable /render cache, it will cache the result for 1 minute
+query-cache-enabled = true
+# 0 for unlimited
+query-cache-size-mb = 0
+# Enable /metrics/find cache, it will cache the result for 5 minutes
+find-cache-enabled = true
+# Control trigram index
+#  This index is used to speed-up /find requests
+#  However, it will lead to increased memory consumption
+#  Estimated memory consumption is approx. 500 bytes per each metric on disk
+#  Another drawback is that it will recreate index every scan-frequency interval
+#  All new/deleted metrics will still be searchable until index is recreated
+trigram-index = true
+# carbonserver keeps track of all available whisper files
+# in memory. This determines how often it will check FS
+# for new or deleted metrics.
+scan-frequency = "5m0s"
+# Maximum amount of globs in a single metric in index
+# This value is used to speed-up /find requests with
+# a lot of globs, but will lead to increased memory consumption
+max-globs = 100
+# graphite-web-10-mode
+# Use Graphite-web 1.0 native structs for pickle response
+# This mode will break compatibility with graphite-web 0.9.x
+# If false, carbonserver won't send graphite-web 1.0 specific structs
+# That might degrade performance of the cluster
+# But will be compatible with both graphite-web 1.0 and 0.9.x
+graphite-web-10-strict-mode = true
 
-type carbonlinkConfig struct {
-	Listen      string    `toml:"listen"`
-	Enabled     bool      `toml:"enabled"`
-	ReadTimeout *Duration `toml:"read-timeout"`
-}
+[dump]
+# Enable dump/restore function on USR2 signal
+enabled = false
+# Directory for store dump data. Should be writeable for carbon
+path = "/var/lib/graphite/dump/"
+# Restore speed. 0 - unlimited
+restore-per-second = 0
 
-type grpcConfig struct {
-	Listen  string `toml:"listen"`
-	Enabled bool   `toml:"enabled"`
-}
+[pprof]
+listen = "localhost:7007"
+enabled = false
 
-type receiverConfig struct {
-	DSN string `toml:"dsn"`
-}
+# Default logger
+[[logging]]
+# logger name
+# available loggers:
+# * "" - default logger for all messages without configured special logger
+# @TODO
+logger = ""
+# Log output: filename, "stderr", "stdout", "none", "" (same as "stderr")
+file = "{{.LogFile}}"
+# Log level: "debug", "info", "warn", "error", "dpanic", "panic", and "fatal"
+level = "info"
+# Log format: "json", "console", "mixed"
+encoding = "mixed"
+# Log time format: "millis", "nanos", "epoch", "iso8601"
+encoding-time = "iso8601"
+# Log duration format: "seconds", "nanos", "string"
+encoding-duration = "seconds"
 
-type tagsConfig struct {
-	Enabled        bool      `toml:"enabled"`
-	TagDB          string    `toml:"tagdb-url"`
-	TagDBTimeout   *Duration `toml:"tagdb-timeout"`
-	TagDBChunkSize int       `toml:"tagdb-chunk-size"`
-	LocalDir       string    `toml:"local-dir"`
-}
+# You can define multiply loggers:
 
-type carbonserverConfig struct {
-	Listen                  string    `toml:"listen"`
-	Enabled                 bool      `toml:"enabled"`
-	ReadTimeout             *Duration `toml:"read-timeout"`
-	IdleTimeout             *Duration `toml:"idle-timeout"`
-	WriteTimeout            *Duration `toml:"write-timeout"`
-	ScanFrequency           *Duration `toml:"scan-frequency"`
-	QueryCacheEnabled       bool      `toml:"query-cache-enabled"`
-	QueryCacheSizeMB        int       `toml:"query-cache-size-mb"`
-	FindCacheEnabled        bool      `toml:"find-cache-enabled"`
-	Buckets                 int       `toml:"buckets"`
-	MaxGlobs                int       `toml:"max-globs"`
-	FailOnMaxGlobs          bool      `toml:"fail-on-max-globs"`
-	MetricsAsCounters       bool      `toml:"metrics-as-counters"`
-	TrigramIndex            bool      `toml:"trigram-index"`
-	GraphiteWeb10StrictMode bool      `toml:"graphite-web-10-strict-mode"`
-	InternalStatsDir        string    `toml:"internal-stats-dir"`
-	Percentiles             []int     `toml:"stats-percentiles"`
-}
+# Copy errors to stderr for systemd
+# [[logging]]
+# logger = ""
+# file = "stderr"
+# level = "error"
+# encoding = "mixed"
+# encoding-time = "iso8601"
+# encoding-duration = "seconds"
+`
 
-type pprofConfig struct {
-	Listen  string `toml:"listen"`
-	Enabled bool   `toml:"enabled"`
-}
-
-type dumpConfig struct {
-	Enabled          bool   `toml:"enabled"`
-	Path             string `toml:"path"`
-	RestorePerSecond int    `toml:"restore-per-second"`
-}
-
-// Config ...
-// NOTE: We had to copy Config from github.com/lomik/go-carbon to workaround the folloing error.
-// cannot use []"github.com/lomik/zapwriter".Config literal (type []"github.com/lomik/zapwriter".Config) as type []"github.com/lomik/go-carbon/vendor/github.com/lomik/zapwriter".Config in assignment
-type Config struct {
-	Common       commonConfig                        `toml:"common"`
-	Whisper      whisperConfig                       `toml:"whisper"`
-	Cache        cacheConfig                         `toml:"cache"`
-	Udp          *udp.Options                        `toml:"udp"`
-	Tcp          *tcp.Options                        `toml:"tcp"`
-	Pickle       *tcp.FramingOptions                 `toml:"pickle"`
-	Receiver     map[string](map[string]interface{}) `toml:"receiver"`
-	Carbonlink   carbonlinkConfig                    `toml:"carbonlink"`
-	Grpc         grpcConfig                          `toml:"grpc"`
-	Tags         tagsConfig                          `toml:"tags"`
-	Carbonserver carbonserverConfig                  `toml:"carbonserver"`
-	Dump         dumpConfig                          `toml:"dump"`
-	Pprof        pprofConfig                         `toml:"pprof"`
-	Logging      []zapwriter.Config                  `toml:"logging"`
-}
-
-func NewLoggingConfig() zapwriter.Config {
-	cfg := zapwriter.NewConfig()
-	cfg.File = "/var/log/go-carbon/go-carbon.log"
-	return cfg
-}
-
-// NewConfig ...
-func NewConfig() *Config {
-	cfg := &Config{
-		Common: commonConfig{
-			GraphPrefix: "carbon.agents.{host}",
-			MetricInterval: &Duration{
-				Duration: time.Minute,
-			},
-			MetricEndpoint: MetricEndpointLocal,
-			MaxCPU:         1,
-			User:           "carbon",
-		},
-		Whisper: whisperConfig{
-			DataDir:             "/var/lib/graphite/whisper/",
-			SchemasFilename:     "/etc/go-carbon/storage-schemas.conf",
-			AggregationFilename: "",
-			MaxUpdatesPerSecond: 0,
-			Enabled:             true,
-			Workers:             1,
-			Sparse:              false,
-			FLock:               false,
-		},
-		Cache: cacheConfig{
-			MaxSize:       1000000,
-			WriteStrategy: "max",
-		},
-		Udp:    udp.NewOptions(),
-		Tcp:    tcp.NewOptions(),
-		Pickle: tcp.NewFramingOptions(),
-		Carbonserver: carbonserverConfig{
-			Listen:            "127.0.0.1:8080",
-			Enabled:           false,
-			Buckets:           10,
-			MaxGlobs:          100,
-			FailOnMaxGlobs:    false,
-			MetricsAsCounters: false,
-			ScanFrequency: &Duration{
-				Duration: 300 * time.Second,
-			},
-			ReadTimeout: &Duration{
-				Duration: 60 * time.Second,
-			},
-			IdleTimeout: &Duration{
-				Duration: 60 * time.Second,
-			},
-			WriteTimeout: &Duration{
-				Duration: 60 * time.Second,
-			},
-			QueryCacheEnabled:       true,
-			QueryCacheSizeMB:        0,
-			FindCacheEnabled:        true,
-			TrigramIndex:            true,
-			GraphiteWeb10StrictMode: true,
-		},
-		Carbonlink: carbonlinkConfig{
-			Listen:  "127.0.0.1:7002",
-			Enabled: true,
-			ReadTimeout: &Duration{
-				Duration: 30 * time.Second,
-			},
-		},
-		Grpc: grpcConfig{
-			Listen:  "127.0.0.1:7003",
-			Enabled: true,
-		},
-		Tags: tagsConfig{
-			Enabled: false,
-			TagDB:   "http://127.0.0.1:8000",
-			TagDBTimeout: &Duration{
-				Duration: time.Second,
-			},
-			TagDBChunkSize: 32,
-			LocalDir:       "/var/lib/graphite/tagging/",
-		},
-		Pprof: pprofConfig{
-			Listen:  "127.0.0.1:7007",
-			Enabled: false,
-		},
-		Dump: dumpConfig{
-			Path: "/var/lib/graphite/dump/",
-		},
-		Logging: nil,
+func (c *Carbon) writeCarbonConfigTo(w io.Writer) error {
+	u, err := user.Current()
+	if err != nil {
+		return err
 	}
+	tmpl := template.Must(template.New("carbon").Parse(carbonConfigTmpl))
+	data := struct {
+		User               string
+		MaxCPU             int
+		DataDir            string
+		SchemasFile        string
+		AggregationFile    string
+		TCPListen          string
+		ProtobufListen     string
+		CarbonserverListen string
+		LogFile            string
+	}{
+		User:               u.Username,
+		MaxCPU:             runtime.NumCPU(),
+		DataDir:            c.dataDirname(),
+		SchemasFile:        c.schemasFilename(),
+		AggregationFile:    c.aggregationFilename(),
+		TCPListen:          c.TCPListen,
+		ProtobufListen:     c.ProtobufListen,
+		CarbonserverListen: c.CarbonserverListen,
+		LogFile:            filepath.Join(c.logDirname(), "go-carbon.log"),
+	}
+	return tmpl.Execute(w, data)
+}
 
-	return cfg
+func (c *Carbon) writeCarbonConfigFile(filename string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	return c.writeCarbonConfigTo(file)
 }

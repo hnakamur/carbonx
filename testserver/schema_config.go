@@ -1,6 +1,19 @@
 package testserver
 
-import "github.com/alyu/configparser"
+import (
+	"html/template"
+	"io"
+	"os"
+)
+
+const schemasConfigTmpl = `{{range . -}}
+[{{.Name}}]
+pattern = {{.Pattern}}
+retentions = {{.Retentions}}
+{{end -}}
+`
+
+type schemasConfig []SchemaConfig
 
 type SchemaConfig struct {
 	Name       string
@@ -8,14 +21,16 @@ type SchemaConfig struct {
 	Retentions string
 }
 
-type schemasConfig []SchemaConfig
+func (c schemasConfig) writeTo(w io.Writer) error {
+	tmpl := template.Must(template.New("schemasConfig").Parse(schemasConfigTmpl))
+	return tmpl.Execute(w, c)
+}
 
 func (c schemasConfig) writeFile(filename string) error {
-	cfg := configparser.NewConfiguration()
-	for _, a := range []SchemaConfig(c) {
-		sec := cfg.NewSection(a.Name)
-		sec.Add("pattern", a.Pattern)
-		sec.Add("retentions", a.Retentions)
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
 	}
-	return configparser.Save(cfg, filename)
+	defer file.Close()
+	return c.writeTo(file)
 }
