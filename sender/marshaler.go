@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"strconv"
 
-	"github.com/lomik/go-carbon/helper/carbonpb"
+	"github.com/hnakamur/carbonx/carbonpb"
 )
 
 type MetricsMarshaler interface {

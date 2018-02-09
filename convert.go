@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/go-graphite/carbonzipper/carbonzipperpb3"
-	"github.com/lomik/go-carbon/helper/carbonpb"
+	"github.com/hnakamur/carbonx/carbonpb"
 )
 
 func convertFetchResponseToMetric(r *carbonzipperpb3.FetchResponse) *carbonpb.Metric {

@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/go-graphite/carbonzipper/carbonzipperpb3"
+	"github.com/hnakamur/carbonx/carbonpb"
 	"github.com/hnakamur/carbonx/sender"
 	"github.com/hnakamur/carbonx/testserver"
 	"github.com/hnakamur/freeport"
 	"github.com/hnakamur/netutil"
-	"github.com/lomik/go-carbon/helper/carbonpb"
 	retry "github.com/rafaeljesus/retry-go"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )

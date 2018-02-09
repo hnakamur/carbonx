@@ -3,8 +3,8 @@ package sender
 import (
 	"net"
 
+	"github.com/hnakamur/carbonx/carbonpb"
 	"github.com/hnakamur/netutil"
-	"github.com/lomik/go-carbon/helper/carbonpb"
 )
 
 type TCPSender struct {
