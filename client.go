@@ -155,7 +155,9 @@ func (c *Client) FetchData(name string, from, until time.Time) (*carbonzipperpb3
 			return nil, err
 		}
 		metrics := result.GetMetrics()
-		if len(metrics) != 1 {
+		if len(metrics) == 0 {
+			return nil, ErrNotFound
+		} else if len(metrics) != 1 {
 			return nil, fmt.Errorf("unexpected metrics count in MultiFetchResponse, len(metrics)=%d", len(metrics))
 		}
 		return &metrics[0], nil
