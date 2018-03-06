@@ -80,6 +80,13 @@ enabled = false
 # Close inactive connections after "read-timeout"
 read-timeout = "30s"
 
+# grpc api
+# protocol: https://github.com/lomik/go-carbon/blob/master/helper/carbonpb/carbon.proto
+# samples: https://github.com/lomik/go-carbon/tree/master/api/sample
+[grpc]
+listen = "127.0.0.1:7003"
+enabled = false
+
 [carbonserver]
 # Please NOTE: carbonserver is not intended to fully replace graphite-web
 # It acts as a "REMOTE_STORAGE" for graphite-web or carbonzipper/carbonapi
