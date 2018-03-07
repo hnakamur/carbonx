@@ -140,7 +140,7 @@ func (m *Merger) MergeMetric(metric string) error {
 		}).String("metric", metric).Stack("")
 	}
 
-	if destInfo != nil && !SameInfo(*srcInfo, *destInfo) {
+	if destInfo != nil && !sameInfo(*srcInfo, *destInfo) {
 		return ltsvlog.Err(ErrUnmatchedInfo).
 			String("metric", metric).Fmt("srcInfo", "%+v", srcInfo).Fmt("destInfo", "%+v", destInfo).Stack("")
 	}
