@@ -91,7 +91,7 @@ func TestDiff(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = srcSender.ConnectSendClose(srcMetrics)
+		err = srcSender.Send(srcMetrics)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -102,7 +102,7 @@ func TestDiff(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = destSender.ConnectSendClose(destMetrics)
+		err = destSender.Send(destMetrics)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -289,7 +289,7 @@ func TestMergeMetric(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = srcSender.ConnectSendClose(srcMetrics)
+		err = srcSender.Send(srcMetrics)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -300,7 +300,7 @@ func TestMergeMetric(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = destSender.ConnectSendClose(destMetrics)
+		err = destSender.Send(destMetrics)
 		if err != nil {
 			t.Fatal(err)
 		}

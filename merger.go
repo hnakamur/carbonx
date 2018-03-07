@@ -175,7 +175,7 @@ func (m *Merger) MergeMetric(metric string) error {
 				Points: points,
 			},
 		}
-		err = m.destSender.ConnectSendClose(destMetrics)
+		err = m.destSender.Send(destMetrics)
 		if err != nil {
 			return err
 		}

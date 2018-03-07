@@ -56,7 +56,7 @@ func TestSendTCP(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = s.ConnectSendClose(metrics)
+		err = s.Send(metrics)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -102,7 +102,7 @@ func TestSendProtobuf(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = s.ConnectSendClose(metrics)
+		err = s.Send(metrics)
 		if err != nil {
 			t.Fatal(err)
 		}

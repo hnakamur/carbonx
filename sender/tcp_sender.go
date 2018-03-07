@@ -25,39 +25,17 @@ func NewTCPSender(sendToAddress string, marshaler MetricsMarshaler) (*TCPSender,
 	}, nil
 }
 
-func (s *TCPSender) Connect() error {
+func (s *TCPSender) Send(metrics []*carbonpb.Metric) error {
 	conn, err := net.Dial("tcp", s.sendToAddress)
 	if err != nil {
 		return err
 	}
-	s.conn = conn
-	return nil
-}
+	defer conn.Close()
 
-func (s *TCPSender) Close() error {
-	err := s.conn.Close()
-	if err != nil {
-		return err
-	}
-	s.conn = nil
-	return nil
-}
-
-func (s *TCPSender) Send(metrics []*carbonpb.Metric) error {
 	data, err := s.marshaler.Marshal(metrics)
 	if err != nil {
 		return err
 	}
-	_, err = s.conn.Write(data)
+	_, err = conn.Write(data)
 	return err
-}
-
-func (s *TCPSender) ConnectSendClose(metrics []*carbonpb.Metric) error {
-	err := s.Connect()
-	if err != nil {
-		return err
-	}
-	defer s.Close()
-
-	return s.Send(metrics)
 }
