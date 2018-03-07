@@ -211,18 +211,36 @@ func fetchAndVerifyMetrics(t *testing.T, testName string, carbonserverListen str
 }
 
 func formatMetric(m *carbonpb.Metric) string {
-	var b []byte
+	var b [256]byte
+	return string(appendMetric(b[:0], m))
+}
+
+func appendMetric(b []byte, m *carbonpb.Metric) []byte {
 	b = append(b, "Metric{Metric:"...)
 	b = append(b, m.Metric...)
-	b = append(b, ", Points:"...)
-	for i, p := range m.Points {
-		if i > 0 {
-			b = append(b, ", "...)
-		}
-		b = append(b, fmt.Sprintf("{Timestamp:%d,Value:%g}", p.Timestamp, p.Value)...)
-	}
+	b = append(b, ",Points:"...)
+	b = appendPoints(b, m.Points)
 	b = append(b, '}')
-	return string(b)
+	return b
+}
+
+func formatPoints(points []carbonpb.Point) string {
+	var b [256]byte
+	return string(appendPoints(b[:0], points))
+}
+
+func appendPoints(b []byte, points []carbonpb.Point) []byte {
+	for i, p := range points {
+		if i > 0 {
+			b = append(b, ',')
+		}
+		b = append(b, "{Timestamp:"...)
+		b = strconv.AppendInt(b, int64(p.Timestamp), 10)
+		b = append(b, ",Value:"...)
+		b = strconv.AppendFloat(b, p.Value, 'g', -1, 64)
+		b = append(b, '}')
+	}
+	return b
 }
 
 func diff(text1, text2 string) string {

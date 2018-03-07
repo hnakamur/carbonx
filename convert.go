@@ -2,6 +2,7 @@ package carbonx
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/hnakamur/carbonx/carbonpb"
 	"github.com/hnakamur/carbonx/carbonzipperpb3"
@@ -14,6 +15,22 @@ func convertFetchResponseToMetric(r *carbonzipperpb3.FetchResponse) *carbonpb.Me
 	for i, v := range r.Values {
 		if r.IsAbsent[i] {
 			continue
+		}
+		m.Points = append(m.Points, carbonpb.Point{
+			Timestamp: uint32(r.StartTime) + uint32(i)*uint32(r.StepTime),
+			Value:     v,
+		})
+	}
+	return m
+}
+
+func convertFetchResponseToMetricForDiff(r *carbonzipperpb3.FetchResponse) *carbonpb.Metric {
+	m := &carbonpb.Metric{
+		Metric: r.Name,
+	}
+	for i, v := range r.Values {
+		if r.IsAbsent[i] {
+			v = math.NaN()
 		}
 		m.Points = append(m.Points, carbonpb.Point{
 			Timestamp: uint32(r.StartTime) + uint32(i)*uint32(r.StepTime),
