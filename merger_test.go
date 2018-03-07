@@ -217,10 +217,9 @@ func TestDiff(t *testing.T) {
 func TestMergeMetric(t *testing.T) {
 	const metricName = "test.access-count"
 	step := time.Minute
+	now := time.Now().Truncate(step)
 
-	setup := func(t *testing.T, srcSender, destSender *sender.TCPSender) (time.Time, error) {
-		now := time.Now().Truncate(step)
-
+	setup := func(t *testing.T, srcSender, destSender *sender.TCPSender) error {
 		srcMetrics := []*carbonpb.Metric{{
 			Metric: metricName,
 			Points: []carbonpb.Point{
@@ -243,20 +242,20 @@ func TestMergeMetric(t *testing.T) {
 
 		err := srcSender.Send(srcMetrics)
 		if err != nil {
-			return time.Time{}, err
+			return err
 		}
 		err = destSender.Send(destMetrics)
 		if err != nil {
-			return time.Time{}, err
+			return err
 		}
-		return now, nil
+		return nil
 	}
 
-	merge := func(t *testing.T, now time.Time, merger *Merger) error {
+	merge := func(t *testing.T, merger *Merger) error {
 		return merger.MergeMetric(metricName)
 	}
 
-	verify := func(t *testing.T, now time.Time, merger *Merger) error {
+	verify := func(t *testing.T, merger *Merger) error {
 		// wait for sent data are written
 		time.Sleep(2 * time.Second)
 
@@ -289,9 +288,9 @@ func TestMergeMetric(t *testing.T) {
 }
 
 func testMergeHelper(t *testing.T,
-	setup func(t *testing.T, srcSender, destSender *sender.TCPSender) (time.Time, error),
-	merge func(t *testing.T, baseTime time.Time, merger *Merger) error,
-	verify func(t *testing.T, baseTime time.Time, merger *Merger) error) {
+	setup func(t *testing.T, srcSender, destSender *sender.TCPSender) error,
+	merge func(t *testing.T, merger *Merger) error,
+	verify func(t *testing.T, merger *Merger) error) {
 
 	rootDir, err := ioutil.TempDir("", "carbontest")
 	if err != nil {
@@ -320,7 +319,7 @@ func testMergeHelper(t *testing.T,
 			t.Fatal(err)
 		}
 
-		baseTime, err := setup(t, srcSender, destSender)
+		err = setup(t, srcSender, destSender)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -341,12 +340,12 @@ func testMergeHelper(t *testing.T,
 		}
 
 		merger := NewMerger(srcClient, destClient, destSender)
-		err = merge(t, baseTime, merger)
+		err = merge(t, merger)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		err = verify(t, baseTime, merger)
+		err = verify(t, merger)
 		if err != nil {
 			t.Fatal(err)
 		}
