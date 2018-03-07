@@ -142,7 +142,7 @@ func TestDiff(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		merger := NewMerger(srcClient, destClient)
+		merger := NewMerger(srcClient, destClient, nil)
 		from := now.Add(-5*step - step)
 		until := now
 		points, err := merger.Diff(metricName, from, until)
@@ -209,6 +209,168 @@ func TestDiff(t *testing.T) {
 		}
 		if gotDest != wantDest {
 			t.Errorf("unexpected dest points, got=%s, want=%s", gotDest, wantDest)
+		}
+	}()
+	waitTestCarbonServers(servers)
+}
+
+func TestMergeMetric(t *testing.T) {
+	rootDir, err := ioutil.TempDir("", "carbontest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(rootDir)
+
+	servers, err := startTwoCarbonServers(rootDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		defer killTestCarbonServers(servers)
+
+		const metricName = "test.access-count"
+		step := time.Minute
+		now := time.Now().Truncate(step)
+
+		srcMetrics := []*carbonpb.Metric{
+			{
+				Metric: metricName,
+				Points: []carbonpb.Point{
+					{
+						Timestamp: uint32(now.Add(-6 * step).Unix()),
+						Value:     -1,
+					},
+					{
+						Timestamp: uint32(now.Add(-5 * step).Unix()),
+						Value:     0,
+					},
+					{
+						Timestamp: uint32(now.Add(-4 * step).Unix()),
+						Value:     1,
+					},
+					{
+						Timestamp: uint32(now.Add(-3 * step).Unix()),
+						Value:     2,
+					},
+					{
+						Timestamp: uint32(now.Unix()),
+						Value:     3,
+					},
+				},
+			},
+		}
+		destMetrics := []*carbonpb.Metric{
+			{
+				Metric: metricName,
+				Points: []carbonpb.Point{
+					{
+						Timestamp: uint32(now.Add(-5 * step).Unix()),
+						Value:     0,
+					},
+					{
+						Timestamp: uint32(now.Add(-3 * step).Unix()),
+						Value:     11,
+					},
+					{
+						Timestamp: uint32(now.Add(-2 * step).Unix()),
+						Value:     12,
+					},
+					{
+						Timestamp: uint32(now.Unix()),
+						Value:     13,
+					},
+				},
+			},
+		}
+
+		srcSender, err := sender.NewTCPSender(
+			convertListenToConnect(servers[0].ProtobufListen),
+			sender.NewProtobuf3MetricsMarshaler())
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = srcSender.ConnectSendClose(srcMetrics)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		destSender, err := sender.NewTCPSender(
+			convertListenToConnect(servers[1].ProtobufListen),
+			sender.NewProtobuf3MetricsMarshaler())
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = destSender.ConnectSendClose(destMetrics)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		srcURL := url.URL{Scheme: "http", Host: convertListenToConnect(servers[0].CarbonserverListen)}
+		srcClient, err := NewClient(
+			srcURL.String(),
+			&http.Client{Timeout: 5 * time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+		destURL := url.URL{Scheme: "http", Host: convertListenToConnect(servers[1].CarbonserverListen)}
+		destClient, err := NewClient(
+			destURL.String(),
+			&http.Client{Timeout: 5 * time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		merger := NewMerger(srcClient, destClient, destSender)
+		err = merger.MergeMetric(metricName)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// wait for sent data are written
+		time.Sleep(time.Second)
+
+		from := now.Add(-6 * step).Add(-step)
+		until := now
+		destData, err := destClient.FetchData(metricName, from, until)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gotPointsStr := formatPoints(convertFetchedDataToPoints(destData))
+
+		wantPoints := []carbonpb.Point{
+			{
+				Timestamp: uint32(now.Add(-6 * step).Unix()),
+				Value:     -1,
+			},
+			{
+				Timestamp: uint32(now.Add(-5 * step).Unix()),
+				Value:     0,
+			},
+			{
+				Timestamp: uint32(now.Add(-4 * step).Unix()),
+				Value:     1,
+			},
+			{
+				Timestamp: uint32(now.Add(-3 * step).Unix()),
+				Value:     11,
+			},
+			{
+				Timestamp: uint32(now.Add(-2 * step).Unix()),
+				Value:     12,
+			},
+			{
+				Timestamp: uint32(now.Add(-step).Unix()),
+				Value:     math.NaN(),
+			},
+			{
+				Timestamp: uint32(now.Unix()),
+				Value:     13,
+			},
+		}
+		wantPointsStr := formatPoints(wantPoints)
+		if gotPointsStr != wantPointsStr {
+			t.Errorf("unexpected points after merge, got=%s, want=%s, diff=%s",
+				gotPointsStr, wantPointsStr, diff(gotPointsStr, wantPointsStr))
 		}
 	}()
 	waitTestCarbonServers(servers)

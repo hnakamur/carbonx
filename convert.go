@@ -8,6 +8,20 @@ import (
 	"github.com/hnakamur/carbonx/carbonzipperpb3"
 )
 
+func convertFetchedDataToPoints(r *carbonzipperpb3.FetchResponse) []carbonpb.Point {
+	var points []carbonpb.Point
+	for i, v := range r.Values {
+		if r.IsAbsent[i] {
+			v = math.NaN()
+		}
+		points = append(points, carbonpb.Point{
+			Timestamp: uint32(r.StartTime) + uint32(i)*uint32(r.StepTime),
+			Value:     v,
+		})
+	}
+	return points
+}
+
 func convertFetchResponseToMetric(r *carbonzipperpb3.FetchResponse) *carbonpb.Metric {
 	m := &carbonpb.Metric{
 		Metric: r.Name,
