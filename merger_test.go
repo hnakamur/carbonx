@@ -215,6 +215,84 @@ func TestDiff(t *testing.T) {
 }
 
 func TestMergeMetric(t *testing.T) {
+	const metricName = "test.access-count"
+	step := time.Minute
+
+	setup := func(t *testing.T, srcSender, destSender *sender.TCPSender) (time.Time, error) {
+		now := time.Now().Truncate(step)
+
+		srcMetrics := []*carbonpb.Metric{{
+			Metric: metricName,
+			Points: []carbonpb.Point{
+				{Timestamp: uint32(now.Add(-6 * step).Unix()), Value: -1},
+				{Timestamp: uint32(now.Add(-5 * step).Unix()), Value: 0},
+				{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 1},
+				{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 2},
+				{Timestamp: uint32(now.Unix()), Value: 3},
+			},
+		}}
+		destMetrics := []*carbonpb.Metric{{
+			Metric: metricName,
+			Points: []carbonpb.Point{
+				{Timestamp: uint32(now.Add(-5 * step).Unix()), Value: 0},
+				{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 11},
+				{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 12},
+				{Timestamp: uint32(now.Unix()), Value: 13},
+			},
+		}}
+
+		err := srcSender.Send(srcMetrics)
+		if err != nil {
+			return time.Time{}, err
+		}
+		err = destSender.Send(destMetrics)
+		if err != nil {
+			return time.Time{}, err
+		}
+		return now, nil
+	}
+
+	merge := func(t *testing.T, now time.Time, merger *Merger) error {
+		return merger.MergeMetric(metricName)
+	}
+
+	verify := func(t *testing.T, now time.Time, merger *Merger) error {
+		// wait for sent data are written
+		time.Sleep(2 * time.Second)
+
+		from := now.Add(-6 * step).Add(-step)
+		until := now
+		destData, err := merger.destClient.FetchData(metricName, from, until)
+		if err != nil {
+			return err
+		}
+		gotPointsStr := formatPoints(convertFetchedDataToPoints(destData))
+
+		wantPoints := []carbonpb.Point{
+			{Timestamp: uint32(now.Add(-6 * step).Unix()), Value: -1},
+			{Timestamp: uint32(now.Add(-5 * step).Unix()), Value: 0},
+			{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 1},
+			{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 11},
+			{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 12},
+			{Timestamp: uint32(now.Add(-step).Unix()), Value: math.NaN()},
+			{Timestamp: uint32(now.Unix()), Value: 13},
+		}
+		wantPointsStr := formatPoints(wantPoints)
+		if gotPointsStr != wantPointsStr {
+			t.Errorf("unexpected points after merge, got=%s, want=%s, diff=%s",
+				gotPointsStr, wantPointsStr, diff(gotPointsStr, wantPointsStr))
+		}
+		return nil
+	}
+
+	testMergeHelper(t, setup, merge, verify)
+}
+
+func testMergeHelper(t *testing.T,
+	setup func(t *testing.T, srcSender, destSender *sender.TCPSender) (time.Time, error),
+	merge func(t *testing.T, baseTime time.Time, merger *Merger) error,
+	verify func(t *testing.T, baseTime time.Time, merger *Merger) error) {
+
 	rootDir, err := ioutil.TempDir("", "carbontest")
 	if err != nil {
 		t.Fatal(err)
@@ -228,68 +306,9 @@ func TestMergeMetric(t *testing.T) {
 	go func() {
 		defer killTestCarbonServers(servers)
 
-		const metricName = "test.access-count"
-		step := time.Minute
-		now := time.Now().Truncate(step)
-
-		srcMetrics := []*carbonpb.Metric{
-			{
-				Metric: metricName,
-				Points: []carbonpb.Point{
-					{
-						Timestamp: uint32(now.Add(-6 * step).Unix()),
-						Value:     -1,
-					},
-					{
-						Timestamp: uint32(now.Add(-5 * step).Unix()),
-						Value:     0,
-					},
-					{
-						Timestamp: uint32(now.Add(-4 * step).Unix()),
-						Value:     1,
-					},
-					{
-						Timestamp: uint32(now.Add(-3 * step).Unix()),
-						Value:     2,
-					},
-					{
-						Timestamp: uint32(now.Unix()),
-						Value:     3,
-					},
-				},
-			},
-		}
-		destMetrics := []*carbonpb.Metric{
-			{
-				Metric: metricName,
-				Points: []carbonpb.Point{
-					{
-						Timestamp: uint32(now.Add(-5 * step).Unix()),
-						Value:     0,
-					},
-					{
-						Timestamp: uint32(now.Add(-3 * step).Unix()),
-						Value:     11,
-					},
-					{
-						Timestamp: uint32(now.Add(-2 * step).Unix()),
-						Value:     12,
-					},
-					{
-						Timestamp: uint32(now.Unix()),
-						Value:     13,
-					},
-				},
-			},
-		}
-
 		srcSender, err := sender.NewTCPSender(
 			convertListenToConnect(servers[0].ProtobufListen),
 			sender.NewProtobuf3MetricsMarshaler())
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = srcSender.Send(srcMetrics)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -300,7 +319,8 @@ func TestMergeMetric(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = destSender.Send(destMetrics)
+
+		baseTime, err := setup(t, srcSender, destSender)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -321,56 +341,14 @@ func TestMergeMetric(t *testing.T) {
 		}
 
 		merger := NewMerger(srcClient, destClient, destSender)
-		err = merger.MergeMetric(metricName)
+		err = merge(t, baseTime, merger)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		// wait for sent data are written
-		time.Sleep(time.Second)
-
-		from := now.Add(-6 * step).Add(-step)
-		until := now
-		destData, err := destClient.FetchData(metricName, from, until)
+		err = verify(t, baseTime, merger)
 		if err != nil {
 			t.Fatal(err)
-		}
-		gotPointsStr := formatPoints(convertFetchedDataToPoints(destData))
-
-		wantPoints := []carbonpb.Point{
-			{
-				Timestamp: uint32(now.Add(-6 * step).Unix()),
-				Value:     -1,
-			},
-			{
-				Timestamp: uint32(now.Add(-5 * step).Unix()),
-				Value:     0,
-			},
-			{
-				Timestamp: uint32(now.Add(-4 * step).Unix()),
-				Value:     1,
-			},
-			{
-				Timestamp: uint32(now.Add(-3 * step).Unix()),
-				Value:     11,
-			},
-			{
-				Timestamp: uint32(now.Add(-2 * step).Unix()),
-				Value:     12,
-			},
-			{
-				Timestamp: uint32(now.Add(-step).Unix()),
-				Value:     math.NaN(),
-			},
-			{
-				Timestamp: uint32(now.Unix()),
-				Value:     13,
-			},
-		}
-		wantPointsStr := formatPoints(wantPoints)
-		if gotPointsStr != wantPointsStr {
-			t.Errorf("unexpected points after merge, got=%s, want=%s, diff=%s",
-				gotPointsStr, wantPointsStr, diff(gotPointsStr, wantPointsStr))
 		}
 	}()
 	waitTestCarbonServers(servers)
