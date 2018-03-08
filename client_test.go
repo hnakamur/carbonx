@@ -218,7 +218,7 @@ func formatMetric(m *carbonpb.Metric) string {
 func appendMetric(b []byte, m *carbonpb.Metric) []byte {
 	b = append(b, "Metric{Metric:"...)
 	b = append(b, m.Metric...)
-	b = append(b, ",Points:"...)
+	b = append(b, " Points:"...)
 	b = appendPoints(b, m.Points)
 	b = append(b, '}')
 	return b
@@ -230,16 +230,20 @@ func formatPoints(points []carbonpb.Point) string {
 }
 
 func appendPoints(b []byte, points []carbonpb.Point) []byte {
+	b = append(b, '[')
 	for i, p := range points {
 		if i > 0 {
-			b = append(b, ',')
+			b = append(b, ' ')
 		}
 		b = append(b, "{Timestamp:"...)
 		b = strconv.AppendInt(b, int64(p.Timestamp), 10)
-		b = append(b, ",Value:"...)
+		b = append(b, ' ')
+		b = time.Unix(int64(p.Timestamp), 0).AppendFormat(b, time.RFC3339)
+		b = append(b, " Value:"...)
 		b = strconv.AppendFloat(b, p.Value, 'g', -1, 64)
 		b = append(b, '}')
 	}
+	b = append(b, ']')
 	return b
 }
 

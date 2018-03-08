@@ -168,6 +168,7 @@ func (m *Merger) MergeMetric(metric string) error {
 		} else if err != nil {
 			return err
 		}
+		ltsvlog.Logger.Info().String("msg", "points for merge").String("points", formatPoints(points)).Log()
 
 		destMetrics := []*carbonpb.Metric{
 			{
@@ -185,7 +186,6 @@ func (m *Merger) MergeMetric(metric string) error {
 }
 
 func (m *Merger) pointsForMerge(metric string, from, until time.Time) ([]carbonpb.Point, error) {
-	log.Printf("pointsForMerge start, from=%s (%d), until=%s (%d)", from, from.Unix(), until, until.Unix())
 	var srcData, destData *carbonzipperpb3.FetchResponse
 	var srcErr, destErr error
 	var wg sync.WaitGroup
@@ -193,8 +193,6 @@ func (m *Merger) pointsForMerge(metric string, from, until time.Time) ([]carbonp
 	go func() {
 		defer wg.Done()
 		srcData, srcErr = m.srcClient.FetchData(metric, from, until)
-		srcPoints := convertFetchedDataToPoints(srcData)
-		log.Printf("from=%s (%d), until=%s (%d), srcPoints=%+v", from, from.Unix(), until, until.Unix(), srcPoints)
 	}()
 	go func() {
 		defer wg.Done()

@@ -215,6 +215,11 @@ func TestDiff(t *testing.T) {
 }
 
 func TestMergeMetric(t *testing.T) {
+	t.Run("singleMetricCase1", testMergeMetricSingleMetricCase1)
+	t.Run("singleMetricCase2", testMergeMetricSingleMetricCase2)
+}
+
+func testMergeMetricSingleMetricCase1(t *testing.T) {
 	const metricName = "test.access-count"
 	step := time.Minute
 	now := time.Now().Truncate(step)
@@ -256,8 +261,8 @@ func TestMergeMetric(t *testing.T) {
 	}
 
 	verify := func(t *testing.T, merger *Merger) error {
-		// wait for sent data are written
-		time.Sleep(2 * time.Second)
+		//// wait for sent data are written
+		//time.Sleep(3 * time.Second)
 
 		from := now.Add(-6 * step).Add(-step)
 		until := now
@@ -281,6 +286,114 @@ func TestMergeMetric(t *testing.T) {
 			t.Errorf("unexpected points after merge, got=%s, want=%s, diff=%s",
 				gotPointsStr, wantPointsStr, diff(gotPointsStr, wantPointsStr))
 		}
+		return nil
+	}
+
+	testMergeHelper(t, setup, merge, verify)
+}
+
+func testMergeMetricSingleMetricCase2(t *testing.T) {
+	const metricName = "test.access-count"
+	step := time.Minute
+	now := time.Now().Truncate(step)
+
+	setup := func(t *testing.T, srcSender, destSender *sender.TCPSender) error {
+		srcMetrics := []*carbonpb.Metric{{
+			Metric: metricName,
+			Points: []carbonpb.Point{
+				{Timestamp: uint32(now.Add(-10 * step).Unix()), Value: 13},
+				{Timestamp: uint32(now.Add(-9 * step).Unix()), Value: 14},
+				{Timestamp: uint32(now.Add(-8 * step).Unix()), Value: 8},
+				{Timestamp: uint32(now.Add(-7 * step).Unix()), Value: 9},
+				{Timestamp: uint32(now.Add(-6 * step).Unix()), Value: -1},
+				{Timestamp: uint32(now.Add(-5 * step).Unix()), Value: 0},
+				{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 1},
+				{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 2},
+				{Timestamp: uint32(now.Unix()), Value: 3},
+			},
+		}}
+		destMetrics := []*carbonpb.Metric{{
+			Metric: metricName,
+			Points: []carbonpb.Point{
+				{Timestamp: uint32(now.Add(-5 * step).Unix()), Value: 0},
+				{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 11},
+				{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 12},
+				{Timestamp: uint32(now.Unix()), Value: 13},
+			},
+		}}
+
+		err := srcSender.Send(srcMetrics)
+		if err != nil {
+			return err
+		}
+		err = destSender.Send(destMetrics)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	merge := func(t *testing.T, merger *Merger) error {
+		return merger.MergeMetric(metricName)
+	}
+
+	verify := func(t *testing.T, merger *Merger) error {
+		// wait for sent data are written
+		//time.Sleep(3 * time.Second)
+
+		from := now.Add(-20 * step).Add(-step)
+		until := now.Add(-10 * step)
+		destData, err := merger.destClient.FetchData(metricName, from, until)
+		if err != nil {
+			return err
+		}
+		gotPointsStr := formatPoints(convertFetchedDataToPoints(destData))
+
+		wantPoints := []carbonpb.Point{
+			//{Timestamp: uint32(now.Add(-10 * step).Unix()), Value: 13},
+			//{Timestamp: uint32(now.Add(-9 * step).Unix()), Value: 14},
+			{Timestamp: uint32(now.Add(-8 * step).Unix()), Value: 8},
+			{Timestamp: uint32(now.Add(-7 * step).Unix()), Value: 9},
+			{Timestamp: uint32(now.Add(-6 * step).Unix()), Value: -1},
+			{Timestamp: uint32(now.Add(-5 * step).Unix()), Value: 0},
+			{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 1},
+			{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 11},
+			{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 12},
+			{Timestamp: uint32(now.Add(-step).Unix()), Value: math.NaN()},
+			{Timestamp: uint32(now.Unix()), Value: 13},
+		}
+		wantPointsStr := formatPoints(wantPoints)
+		if gotPointsStr != wantPointsStr {
+			t.Errorf("unexpected points #1 after merge, got=%s, want=%s, diff=%s",
+				gotPointsStr, wantPointsStr, diff(gotPointsStr, wantPointsStr))
+		}
+
+		//from := now.Add(-8 * step).Add(-step)
+		//until := now
+		//destData, err := merger.destClient.FetchData(metricName, from, until)
+		//if err != nil {
+		//	return err
+		//}
+		//gotPointsStr := formatPoints(convertFetchedDataToPoints(destData))
+
+		//wantPoints := []carbonpb.Point{
+		//	//{Timestamp: uint32(now.Add(-10 * step).Unix()), Value: 13},
+		//	//{Timestamp: uint32(now.Add(-9 * step).Unix()), Value: 14},
+		//	{Timestamp: uint32(now.Add(-8 * step).Unix()), Value: 8},
+		//	{Timestamp: uint32(now.Add(-7 * step).Unix()), Value: 9},
+		//	{Timestamp: uint32(now.Add(-6 * step).Unix()), Value: -1},
+		//	{Timestamp: uint32(now.Add(-5 * step).Unix()), Value: 0},
+		//	{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 1},
+		//	{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 11},
+		//	{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 12},
+		//	{Timestamp: uint32(now.Add(-step).Unix()), Value: math.NaN()},
+		//	{Timestamp: uint32(now.Unix()), Value: 13},
+		//}
+		//wantPointsStr := formatPoints(wantPoints)
+		//if gotPointsStr != wantPointsStr {
+		//	t.Errorf("unexpected points #2 after merge, got=%s, want=%s, diff=%s",
+		//		gotPointsStr, wantPointsStr, diff(gotPointsStr, wantPointsStr))
+		//}
 		return nil
 	}
 
@@ -318,6 +431,20 @@ func testMergeHelper(t *testing.T,
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		//srcSender, err := sender.NewTCPSender(
+		//	convertListenToConnect(servers[0].TCPListen),
+		//	sender.NewTextMetricsMarshaler())
+		//if err != nil {
+		//	t.Fatal(err)
+		//}
+
+		//destSender, err := sender.NewTCPSender(
+		//	convertListenToConnect(servers[1].TCPListen),
+		//	sender.NewTextMetricsMarshaler())
+		//if err != nil {
+		//	t.Fatal(err)
+		//}
 
 		err = setup(t, srcSender, destSender)
 		if err != nil {
