@@ -22,52 +22,124 @@ import (
 )
 
 func TestSendTCP(t *testing.T) {
-	rootDir, err := ioutil.TempDir("", "carbontest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(rootDir)
+	metricName := "test.access-count"
+	step := time.Second
+	now := time.Now().Truncate(step)
 
-	ts, err := startCarbonServer(rootDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	go func() {
-		defer ts.Kill()
+	metrics := []*carbonpb.Metric{{
+		Metric: metricName,
+		Points: []carbonpb.Point{
+			{Timestamp: uint32(now.Unix()), Value: 3.14159},
+		},
+	}}
 
-		metricName := "test.access-count"
-		step := time.Second
-		now := time.Now().Truncate(step)
-		metrics := []*carbonpb.Metric{
-			{
-				Metric: metricName,
-				Points: []carbonpb.Point{
-					{
-						Timestamp: uint32(now.Unix()),
-						Value:     3.14159,
-					},
-				},
-			},
-		}
-
-		s, err := sender.NewTCPSender(
-			convertListenToConnect(ts.TCPListen),
-			sender.NewTextMetricsMarshaler())
+	setup := func(t *testing.T, s *sender.TCPSender) error {
+		err := s.Send(metrics)
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = s.Send(metrics)
+		return nil
+	}
+
+	verify := func(t *testing.T, client *Client) error {
+		_, err := waitForMetricWritten(client, metricName)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		fetchAndVerifyMetrics(t, "TestSendTCP",
-			convertListenToConnect(ts.CarbonserverListen), now, step, metrics)
-	}()
-	ts.Wait()
+		from := now.Add(-step)
+		until := from
+		data, err := client.FetchData(metricName, from, until)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		got := formatMetric(convertFetchResponseToMetric(data))
+		want := formatMetric(metrics[0])
+		if got != want {
+			t.Errorf("unexptected fetch result,\ngot =%s,\nwant=%s,\ndiff=%s",
+				got, want, diff(got, want))
+		}
+		return nil
+	}
+
+	testWithOneServer(t, createTextSender, setup, verify)
 }
 
 func TestSendProtobuf(t *testing.T) {
+	metricName := "test.access-count"
+	step := time.Second
+	now := time.Now().Truncate(step)
+
+	metrics := []*carbonpb.Metric{{
+		Metric: metricName,
+		Points: []carbonpb.Point{
+			{Timestamp: uint32(now.Unix()), Value: 3.14159},
+		},
+	}}
+
+	setup := func(t *testing.T, s *sender.TCPSender) error {
+		err := s.Send(metrics)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return nil
+	}
+
+	verify := func(t *testing.T, client *Client) error {
+		_, err := waitForMetricWritten(client, metricName)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		from := now.Add(-step)
+		until := from
+		data, err := client.FetchData(metricName, from, until)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		got := formatMetric(convertFetchResponseToMetric(data))
+		want := formatMetric(metrics[0])
+		if got != want {
+			t.Errorf("unexptected fetch result,\ngot =%s,\nwant=%s,\ndiff=%s",
+				got, want, diff(got, want))
+		}
+		return nil
+	}
+
+	testWithOneServer(t, createProtobufSender, setup, verify)
+}
+
+func waitForMetricWritten(c *Client, metricName string) (*carbonzipperpb3.InfoResponse, error) {
+	var info *carbonzipperpb3.InfoResponse
+	attempts := 5
+	sleepTime := 100 * time.Millisecond
+	err := retry.Do(func() error {
+		var err error
+		info, err = c.GetMetricInfo(metricName)
+		return err
+	}, attempts, sleepTime)
+	return info, err
+}
+
+func createTextSender(ts *testserver.Carbon) (*sender.TCPSender, error) {
+	return sender.NewTCPSender(
+		convertListenToConnect(ts.TCPListen),
+		sender.NewTextMetricsMarshaler())
+}
+
+func createProtobufSender(ts *testserver.Carbon) (*sender.TCPSender, error) {
+	return sender.NewTCPSender(
+		convertListenToConnect(ts.ProtobufListen),
+		sender.NewProtobuf3MetricsMarshaler())
+}
+
+func testWithOneServer(t *testing.T,
+	createSender func(ts *testserver.Carbon) (*sender.TCPSender, error),
+	setup func(t *testing.T, s *sender.TCPSender) error,
+	verify func(t *testing.T, client *Client) error) {
+
 	rootDir, err := ioutil.TempDir("", "carbontest")
 	if err != nil {
 		t.Fatal(err)
@@ -81,34 +153,28 @@ func TestSendProtobuf(t *testing.T) {
 	go func() {
 		defer ts.Kill()
 
-		metricName := "test.access-count"
-		step := time.Second
-		now := time.Now().Truncate(step)
-		metrics := []*carbonpb.Metric{
-			{
-				Metric: metricName,
-				Points: []carbonpb.Point{
-					{
-						Timestamp: uint32(now.Unix()),
-						Value:     3.14159,
-					},
-				},
-			},
-		}
-
-		s, err := sender.NewTCPSender(
-			convertListenToConnect(ts.ProtobufListen),
-			sender.NewProtobuf3MetricsMarshaler())
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = s.Send(metrics)
+		s, err := createSender(ts)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		fetchAndVerifyMetrics(t, "TestSendProtobuf",
-			convertListenToConnect(ts.CarbonserverListen), now, step, metrics)
+		err = setup(t, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		u := url.URL{Scheme: "http", Host: convertListenToConnect(ts.CarbonserverListen)}
+		client, err := NewClient(
+			u.String(),
+			&http.Client{Timeout: 5 * time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = verify(t, client)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}()
 	ts.Wait()
 }
