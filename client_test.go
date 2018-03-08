@@ -21,9 +21,9 @@ import (
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
-func TestSendTCP(t *testing.T) {
+func TestSendText(t *testing.T) {
 	metricName := "test.access-count"
-	step := time.Second
+	step := time.Minute
 	now := time.Now().Truncate(step)
 
 	metrics := []*carbonpb.Metric{{
@@ -68,7 +68,7 @@ func TestSendTCP(t *testing.T) {
 
 func TestSendProtobuf(t *testing.T) {
 	metricName := "test.access-count"
-	step := time.Second
+	step := time.Minute
 	now := time.Now().Truncate(step)
 
 	metrics := []*carbonpb.Metric{{
@@ -193,7 +193,7 @@ func startCarbonServer(rootDir string) (*testserver.Carbon, error) {
 			{
 				Name:       "default",
 				Pattern:    "\\.*",
-				Retentions: "1s:5s,5s:15s,15s:60s",
+				Retentions: "1m:5m,5m:20m,20m:60m",
 			},
 		},
 		Aggregations: []testserver.AggregationConfig{
