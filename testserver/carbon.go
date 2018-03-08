@@ -33,6 +33,8 @@ func (c *Carbon) startProcess() error {
 		return fmt.Errorf("executable %q not found in $PATH", execFilename)
 	}
 	c.cmd = exec.Command(path, "-config", c.CarbonConfigFilename())
+	c.cmd.Stdout = os.Stdout
+	c.cmd.Stderr = os.Stderr
 	err = c.cmd.Start()
 	if err != nil {
 		return err
