@@ -103,7 +103,7 @@ metrics-as-counters = false
 read-timeout = "60s"
 write-timeout = "60s"
 # Enable /render cache, it will cache the result for 1 minute
-query-cache-enabled = true
+query-cache-enabled = false
 # 0 for unlimited
 query-cache-size-mb = 0
 # Enable /metrics/find cache, it will cache the result for 5 minutes
