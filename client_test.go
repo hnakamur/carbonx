@@ -22,93 +22,58 @@ import (
 )
 
 func TestSendText(t *testing.T) {
-	metricName := "test.access-count"
-	step := time.Minute
-	now := time.Now().Truncate(step)
-
-	metrics := []*carbonpb.Metric{{
-		Metric: metricName,
-		Points: []carbonpb.Point{
-			{Timestamp: uint32(now.Unix()), Value: 3.14159},
-		},
-	}}
-
-	setup := func(t *testing.T, s *sender.TCPSender) error {
-		err := s.Send(metrics)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return nil
-	}
-
-	verify := func(t *testing.T, client *Client) error {
-		_, err := waitForMetricWritten(client, metricName)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		from := now.Add(-step)
-		until := from
-		data, err := client.FetchData(metricName, from, until)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		got := formatMetric(convertFetchResponseToMetric(data))
-		want := formatMetric(metrics[0])
-		if got != want {
-			t.Errorf("unexptected fetch result,\ngot =%s,\nwant=%s,\ndiff=%s",
-				got, want, diff(got, want))
-		}
-		return nil
-	}
-
-	testWithOneServer(t, createTextSender, setup, verify)
+	t.Run("case1", testSendCase1(createTextSender))
 }
 
 func TestSendProtobuf(t *testing.T) {
-	metricName := "test.access-count"
-	step := time.Minute
-	now := time.Now().Truncate(step)
+	t.Run("case1", testSendCase1(createProtobufSender))
+}
 
-	metrics := []*carbonpb.Metric{{
-		Metric: metricName,
-		Points: []carbonpb.Point{
-			{Timestamp: uint32(now.Unix()), Value: 3.14159},
-		},
-	}}
+func testSendCase1(createSender func(ts *testserver.Carbon) (*sender.TCPSender, error)) func(*testing.T) {
+	return func(t *testing.T) {
+		metricName := "test.access-count"
+		step := time.Minute
+		now := time.Now().Truncate(step)
 
-	setup := func(t *testing.T, s *sender.TCPSender) error {
-		err := s.Send(metrics)
-		if err != nil {
-			t.Fatal(err)
+		metrics := []*carbonpb.Metric{{
+			Metric: metricName,
+			Points: []carbonpb.Point{
+				{Timestamp: uint32(now.Unix()), Value: 3.14159},
+			},
+		}}
+
+		setup := func(t *testing.T, s *sender.TCPSender) error {
+			err := s.Send(metrics)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return nil
 		}
-		return nil
+
+		verify := func(t *testing.T, client *Client) error {
+			_, err := waitForMetricWritten(client, metricName)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			from := now.Add(-step)
+			until := from
+			data, err := client.FetchData(metricName, from, until)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			got := formatMetric(convertFetchResponseToMetric(data))
+			want := formatMetric(metrics[0])
+			if got != want {
+				t.Errorf("unexptected fetch result,\ngot =%s,\nwant=%s,\ndiff=%s",
+					got, want, diff(got, want))
+			}
+			return nil
+		}
+
+		testWithOneServer(t, createSender, setup, verify)
 	}
-
-	verify := func(t *testing.T, client *Client) error {
-		_, err := waitForMetricWritten(client, metricName)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		from := now.Add(-step)
-		until := from
-		data, err := client.FetchData(metricName, from, until)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		got := formatMetric(convertFetchResponseToMetric(data))
-		want := formatMetric(metrics[0])
-		if got != want {
-			t.Errorf("unexptected fetch result,\ngot =%s,\nwant=%s,\ndiff=%s",
-				got, want, diff(got, want))
-		}
-		return nil
-	}
-
-	testWithOneServer(t, createProtobufSender, setup, verify)
 }
 
 func waitForMetricWritten(c *Client, metricName string) (*carbonzipperpb3.InfoResponse, error) {
