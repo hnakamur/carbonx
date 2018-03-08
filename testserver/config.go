@@ -44,7 +44,7 @@ max-size = 1000000
 #   "sorted" - sort by timestamp of first unwritten datapoint.
 #   "noop" - pick metrics to write in unspecified order,
 #            requires least CPU and improves cache responsiveness
-write-strategy = "max"
+write-strategy = "noop"
 
 [udp]
 listen = ":2003"
