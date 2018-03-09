@@ -14,8 +14,8 @@ import (
 
 	"github.com/hnakamur/carbonx/carbonpb"
 	"github.com/hnakamur/carbonx/carbonzipperpb3"
+	"github.com/hnakamur/carbonx/internal/testserver"
 	"github.com/hnakamur/carbonx/sender"
-	"github.com/hnakamur/carbonx/testserver"
 	"github.com/hnakamur/freeport"
 	retry "github.com/rafaeljesus/retry-go"
 )
