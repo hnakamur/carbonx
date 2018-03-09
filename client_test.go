@@ -28,125 +28,26 @@ type verifyConfig struct {
 }
 
 func TestSendText(t *testing.T) {
-	t.Run("case1", testSendCase1(createTextSender))
-	t.Run("case2", testSendCase2(createTextSender))
-	t.Run("AtSeconds5nplus0Case1", testSendAtSeconds5nplus0Case1(createTextSender))
-	t.Run("AtSeconds5nplus0Case2", testSendAtSeconds5nplus0Case2(createTextSender))
-	t.Run("AtSeconds5nplus0Case3", testSendAtSeconds5nplus0Case3(createTextSender))
+	t.Run("AtSeconds5nPlus0Case1", testSendAtSeconds5nPlus0Case1(createTextSender))
+	t.Run("AtSeconds5nPlus0Case2", testSendAtSeconds5nPlus0Case2(createTextSender))
+	t.Run("AtSeconds5nPlus0Case3", testSendAtSeconds5nPlus0Case3(createTextSender))
+
+	t.Run("AtSeconds5nPlus1Case1", testSendAtSeconds5nPlus1Case1(createTextSender))
+	t.Run("AtSeconds5nPlus1Case2", testSendAtSeconds5nPlus1Case2(createTextSender))
+	t.Run("AtSeconds5nPlus1Case3", testSendAtSeconds5nPlus1Case3(createTextSender))
 }
 
 func TestSendProtobuf(t *testing.T) {
-	t.Run("case1", testSendCase1(createProtobufSender))
-	t.Run("case2", testSendCase2(createProtobufSender))
-	t.Run("AtSeconds5nplus0Case1", testSendAtSeconds5nplus0Case1(createProtobufSender))
-	t.Run("AtSeconds5nplus0Case2", testSendAtSeconds5nplus0Case2(createProtobufSender))
-	t.Run("AtSeconds5nplus0Case3", testSendAtSeconds5nplus0Case3(createProtobufSender))
+	t.Run("AtSeconds5nPlus0Case1", testSendAtSeconds5nPlus0Case1(createProtobufSender))
+	t.Run("AtSeconds5nPlus0Case2", testSendAtSeconds5nPlus0Case2(createProtobufSender))
+	t.Run("AtSeconds5nPlus0Case3", testSendAtSeconds5nPlus0Case3(createProtobufSender))
+
+	t.Run("AtSeconds5nPlus1Case1", testSendAtSeconds5nPlus1Case1(createProtobufSender))
+	t.Run("AtSeconds5nPlus1Case2", testSendAtSeconds5nPlus1Case2(createProtobufSender))
+	t.Run("AtSeconds5nPlus1Case3", testSendAtSeconds5nPlus1Case3(createProtobufSender))
 }
 
-func testSendCase1(createSender func(ts *testserver.Carbon) (*sender.TCPSender, error)) func(*testing.T) {
-	return func(t *testing.T) {
-		metricName := "test.access-count"
-		step := time.Second
-		now := time.Now().Truncate(step)
-
-		metrics := []*carbonpb.Metric{{
-			Metric: metricName,
-			Points: []carbonpb.Point{
-				{Timestamp: uint32(now.Unix()), Value: 3},
-			},
-		}}
-
-		setup := func(t *testing.T, s *sender.TCPSender) error {
-			err := s.Send(metrics)
-			if err != nil {
-				t.Fatal(err)
-			}
-			return nil
-		}
-
-		verify := func(t *testing.T, client *Client) error {
-			_, err := waitForMetricWritten(client, metricName)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			from := now.Add(-step)
-			until := from
-			data, err := client.FetchData(metricName, from, until)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			got := formatMetric(convertFetchResponseToMetric(data))
-			want := formatMetric(metrics[0])
-			if got != want {
-				t.Errorf("unexptected fetch result,\ngot =%s,\nwant=%s,\ndiff=%s",
-					got, want, diff(got, want))
-			}
-			return nil
-		}
-
-		testWithOneServer(t, createSender, setup, verify)
-	}
-}
-
-func testSendCase2(createSender func(ts *testserver.Carbon) (*sender.TCPSender, error)) func(*testing.T) {
-	return func(t *testing.T) {
-		const metricName = "test.access-count"
-		const step = time.Second
-		const nextStep = 5 * time.Second
-
-		// 5 * n
-		now := time.Now()
-		time.Sleep(now.Truncate(nextStep).Add(nextStep).Sub(now))
-
-		now = time.Now().Truncate(step)
-		metrics := []*carbonpb.Metric{{
-			Metric: metricName,
-			Points: []carbonpb.Point{
-				{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 7},
-				{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 4},
-				{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 5},
-				{Timestamp: uint32(now.Add(-step).Unix()), Value: 2},
-				{Timestamp: uint32(now.Unix()), Value: 3},
-			},
-		}}
-
-		setup := func(t *testing.T, s *sender.TCPSender) error {
-			err := s.Send(metrics)
-			if err != nil {
-				t.Fatal(err)
-			}
-			return nil
-		}
-
-		verify := func(t *testing.T, client *Client) error {
-			_, err := waitForMetricWritten(client, metricName)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			from := now.Add(-4 * step).Add(-step)
-			until := now
-			data, err := client.FetchData(metricName, from, until)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			got := formatMetric(convertFetchResponseToMetric(data))
-			want := formatMetric(metrics[0])
-			if got != want {
-				t.Errorf("unexptected fetch result,\ngot =%s,\nwant=%s,\ndiff=%s",
-					got, want, diff(got, want))
-			}
-			return nil
-		}
-
-		testWithOneServer(t, createSender, setup, verify)
-	}
-}
-
-func testSendAtSeconds5nplus0Case1(createSender func(ts *testserver.Carbon) (*sender.TCPSender, error)) func(*testing.T) {
+func testSendAtSeconds5nPlus0Case1(createSender func(ts *testserver.Carbon) (*sender.TCPSender, error)) func(*testing.T) {
 	return func(t *testing.T) {
 		const metricName = "test.access-count"
 		const step = time.Second
@@ -158,7 +59,7 @@ func testSendAtSeconds5nplus0Case1(createSender func(ts *testserver.Carbon) (*se
 		now = time.Now().Truncate(step)
 
 		metrics := []*carbonpb.Metric{{
-			Metric: "test.metric0",
+			Metric: metricName,
 			Points: []carbonpb.Point{
 				{Timestamp: uint32(now.Add(-5 * step).Unix()), Value: 6},
 				{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 7},
@@ -171,7 +72,7 @@ func testSendAtSeconds5nplus0Case1(createSender func(ts *testserver.Carbon) (*se
 		verifyConfigs := []verifyConfig{{
 			from: now.Add(-4 * step).Add(-step), until: now,
 			want: carbonpb.Metric{
-				Metric: "test.metric0",
+				Metric: metricName,
 				Points: []carbonpb.Point{
 					{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 7},
 					{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 4},
@@ -183,7 +84,7 @@ func testSendAtSeconds5nplus0Case1(createSender func(ts *testserver.Carbon) (*se
 		}, {
 			from: now.Add(-nextStep).Add(-nextStep), until: now,
 			want: carbonpb.Metric{
-				Metric: "test.metric0",
+				Metric: metricName,
 				Points: []carbonpb.Point{
 					{Timestamp: uint32(now.Add(-nextStep).Unix()), Value: 18},
 					{Timestamp: uint32(now.Unix()), Value: 3},
@@ -201,7 +102,7 @@ func testSendAtSeconds5nplus0Case1(createSender func(ts *testserver.Carbon) (*se
 	}
 }
 
-func testSendAtSeconds5nplus0Case2(createSender func(ts *testserver.Carbon) (*sender.TCPSender, error)) func(*testing.T) {
+func testSendAtSeconds5nPlus0Case2(createSender func(ts *testserver.Carbon) (*sender.TCPSender, error)) func(*testing.T) {
 	return func(t *testing.T) {
 		const metricName = "test.access-count"
 		const step = time.Second
@@ -212,7 +113,7 @@ func testSendAtSeconds5nplus0Case2(createSender func(ts *testserver.Carbon) (*se
 
 		now = time.Now().Truncate(step)
 		// This input metrics causes a surprising result, so should be avoided.
-		// Seperate inputs such as testSendAtSeconds5nplus0Case3
+		// Seperate inputs such as testSendAtSeconds5nPlus0Case3
 		metrics := []*carbonpb.Metric{{
 			Metric: metricName,
 			Points: []carbonpb.Point{
@@ -225,66 +126,6 @@ func testSendAtSeconds5nplus0Case2(createSender func(ts *testserver.Carbon) (*se
 				{Timestamp: uint32(now.Unix()), Value: 3},
 			},
 		}}
-		verifyConfigs := []verifyConfig{{
-			from: now.Add(-4 * step).Add(-step), until: now,
-			want: carbonpb.Metric{
-				Metric: metricName,
-				Points: []carbonpb.Point{
-					{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 7},
-					{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 4},
-					{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 5},
-					{Timestamp: uint32(now.Add(-step).Unix()), Value: 2},
-					{Timestamp: uint32(now.Unix()), Value: 3},
-				},
-			},
-		}, {
-			from: now.Add(-5 * step).Add(-step), until: now,
-			want: carbonpb.Metric{
-				Metric: metricName,
-				Points: []carbonpb.Point{
-					{Timestamp: uint32(now.Add(-nextStep).Unix()), Value: 6},
-					{Timestamp: uint32(now.Unix()), Value: 3},
-				},
-			},
-		}}
-
-		setup := func(t *testing.T, s *sender.TCPSender) error {
-			return s.Send(metrics)
-		}
-		verify := func(t *testing.T, client *Client) error {
-			return fetchAndVerifyMetrics(t, client, verifyConfigs)
-		}
-		testWithOneServer(t, createSender, setup, verify)
-	}
-}
-
-func testSendAtSeconds5nplus0Case3(createSender func(ts *testserver.Carbon) (*sender.TCPSender, error)) func(*testing.T) {
-	return func(t *testing.T) {
-		const metricName = "test.access-count"
-		const step = time.Second
-		const nextStep = 5 * time.Second
-
-		now := time.Now()
-		time.Sleep(now.Truncate(nextStep).Add(nextStep).Sub(now))
-
-		now = time.Now().Truncate(step)
-		metrics := []*carbonpb.Metric{{
-			Metric: metricName,
-			Points: []carbonpb.Point{
-				{Timestamp: uint32(now.Add(-6 * step).Unix()), Value: 1},
-			},
-		}, {
-			Metric: metricName,
-			Points: []carbonpb.Point{
-				{Timestamp: uint32(now.Add(-5 * step).Unix()), Value: 6},
-				{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 7},
-				{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 4},
-				{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 5},
-				{Timestamp: uint32(now.Add(-step).Unix()), Value: 2},
-				{Timestamp: uint32(now.Unix()), Value: 3},
-			},
-		}}
-
 		verifyConfigs := []verifyConfig{{
 			from: now.Add(-4 * step).Add(-step), until: now,
 			want: carbonpb.Metric{
@@ -304,6 +145,245 @@ func testSendAtSeconds5nplus0Case3(createSender func(ts *testserver.Carbon) (*se
 				Points: []carbonpb.Point{
 					{Timestamp: uint32(now.Add(-nextStep).Unix()), Value: 6},
 					{Timestamp: uint32(now.Unix()), Value: 3},
+				},
+			},
+		}}
+
+		setup := func(t *testing.T, s *sender.TCPSender) error {
+			return s.Send(metrics)
+		}
+		verify := func(t *testing.T, client *Client) error {
+			return fetchAndVerifyMetrics(t, client, verifyConfigs)
+		}
+		testWithOneServer(t, createSender, setup, verify)
+	}
+}
+
+func testSendAtSeconds5nPlus0Case3(createSender func(ts *testserver.Carbon) (*sender.TCPSender, error)) func(*testing.T) {
+	return func(t *testing.T) {
+		const metricName = "test.access-count"
+		const step = time.Second
+		const nextStep = 5 * time.Second
+
+		now := time.Now()
+		time.Sleep(now.Truncate(nextStep).Add(nextStep).Sub(now))
+
+		now = time.Now().Truncate(step)
+		metrics := []*carbonpb.Metric{{
+			Metric: metricName,
+			Points: []carbonpb.Point{
+				{Timestamp: uint32(now.Add(-2 * nextStep).Unix()), Value: 1 + 6},
+			},
+		}, {
+			Metric: metricName,
+			Points: []carbonpb.Point{
+				{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 7},
+				{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 4},
+				{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 5},
+				{Timestamp: uint32(now.Add(-step).Unix()), Value: 2},
+				{Timestamp: uint32(now.Unix()), Value: 3},
+			},
+		}}
+
+		verifyConfigs := []verifyConfig{{
+			from: now.Add(-4 * step).Add(-step), until: now,
+			want: carbonpb.Metric{
+				Metric: metricName,
+				Points: []carbonpb.Point{
+					{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 7},
+					{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 4},
+					{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 5},
+					{Timestamp: uint32(now.Add(-step).Unix()), Value: 2},
+					{Timestamp: uint32(now.Unix()), Value: 3},
+				},
+			},
+		}, {
+			from: now.Add(-2 * nextStep).Add(-nextStep), until: now,
+			want: carbonpb.Metric{
+				Metric: metricName,
+				Points: []carbonpb.Point{
+					{Timestamp: uint32(now.Add(-nextStep).Unix()), Value: 6},
+					{Timestamp: uint32(now.Unix()), Value: 3},
+				},
+			},
+		}}
+
+		setup := func(t *testing.T, s *sender.TCPSender) error {
+			for _, m := range metrics {
+				err := s.Send([]*carbonpb.Metric{m})
+				if err != nil {
+					return err
+				}
+				//time.Sleep(time.Second)
+			}
+			return nil
+		}
+		verify := func(t *testing.T, client *Client) error {
+			//time.Sleep(time.Second)
+			return fetchAndVerifyMetrics(t, client, verifyConfigs)
+		}
+		testWithOneServer(t, createSender, setup, verify)
+	}
+}
+
+func testSendAtSeconds5nPlus1Case1(createSender func(ts *testserver.Carbon) (*sender.TCPSender, error)) func(*testing.T) {
+	return func(t *testing.T) {
+		const metricName = "test.access-count"
+		const step = time.Second
+		const nextStep = 5 * time.Second
+
+		now := time.Now()
+		time.Sleep(now.Truncate(nextStep).Add(nextStep).Add(step).Sub(now))
+
+		now = time.Now().Truncate(step)
+
+		metrics := []*carbonpb.Metric{{
+			Metric: metricName,
+			Points: []carbonpb.Point{
+				{Timestamp: uint32(now.Add(-5 * step).Unix()), Value: 6},
+				{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 7},
+				{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 4},
+				{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 5},
+				{Timestamp: uint32(now.Add(-step).Unix()), Value: 2},
+				{Timestamp: uint32(now.Unix()), Value: 3},
+			},
+		}}
+		verifyConfigs := []verifyConfig{{
+			from: now.Add(-4 * step).Add(-step), until: now,
+			want: carbonpb.Metric{
+				Metric: metricName,
+				Points: []carbonpb.Point{
+					{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 7},
+					{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 4},
+					{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 5},
+					{Timestamp: uint32(now.Add(-step).Unix()), Value: 2},
+					{Timestamp: uint32(now.Unix()), Value: 3},
+				},
+			},
+		}, {
+			from: now.Add(-step - nextStep).Add(-nextStep), until: now,
+			want: carbonpb.Metric{
+				Metric: metricName,
+				Points: []carbonpb.Point{
+					{Timestamp: uint32(now.Add(-step - nextStep).Unix()), Value: 16},
+					{Timestamp: uint32(now.Add(-step).Unix()), Value: 5},
+				},
+			},
+		}}
+
+		setup := func(t *testing.T, s *sender.TCPSender) error {
+			return s.Send(metrics)
+		}
+		verify := func(t *testing.T, client *Client) error {
+			return fetchAndVerifyMetrics(t, client, verifyConfigs)
+		}
+		testWithOneServer(t, createSender, setup, verify)
+	}
+}
+
+func testSendAtSeconds5nPlus1Case2(createSender func(ts *testserver.Carbon) (*sender.TCPSender, error)) func(*testing.T) {
+	return func(t *testing.T) {
+		const metricName = "test.access-count"
+		const step = time.Second
+		const nextStep = 5 * time.Second
+
+		now := time.Now()
+		time.Sleep(now.Truncate(nextStep).Add(nextStep).Add(step).Sub(now))
+
+		now = time.Now().Truncate(step)
+		// This input metrics causes a surprising result, so should be avoided.
+		// Seperate inputs such as testSendAtSeconds5nPlus1Case3
+		metrics := []*carbonpb.Metric{{
+			Metric: metricName,
+			Points: []carbonpb.Point{
+				{Timestamp: uint32(now.Add(-6 * step).Unix()), Value: 1},
+				{Timestamp: uint32(now.Add(-5 * step).Unix()), Value: 6},
+				{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 7},
+				{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 4},
+				{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 5},
+				{Timestamp: uint32(now.Add(-step).Unix()), Value: 2},
+				{Timestamp: uint32(now.Unix()), Value: 3},
+			},
+		}}
+		verifyConfigs := []verifyConfig{{
+			from: now.Add(-4 * step).Add(-step), until: now,
+			want: carbonpb.Metric{
+				Metric: metricName,
+				Points: []carbonpb.Point{
+					{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 7},
+					{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 4},
+					{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 5},
+					{Timestamp: uint32(now.Add(-step).Unix()), Value: 2},
+					{Timestamp: uint32(now.Unix()), Value: 3},
+				},
+			},
+		}, {
+			from: now.Add(-step - nextStep).Add(-nextStep), until: now.Add(-step),
+			want: carbonpb.Metric{
+				Metric: metricName,
+				Points: []carbonpb.Point{
+					{Timestamp: uint32(now.Add(-step - nextStep).Unix()), Value: 6},
+					{Timestamp: uint32(now.Add(-step).Unix()), Value: 5},
+				},
+			},
+		}}
+
+		setup := func(t *testing.T, s *sender.TCPSender) error {
+			return s.Send(metrics)
+		}
+		verify := func(t *testing.T, client *Client) error {
+			return fetchAndVerifyMetrics(t, client, verifyConfigs)
+		}
+		testWithOneServer(t, createSender, setup, verify)
+	}
+}
+
+func testSendAtSeconds5nPlus1Case3(createSender func(ts *testserver.Carbon) (*sender.TCPSender, error)) func(*testing.T) {
+	return func(t *testing.T) {
+		const metricName = "test.access-count"
+		const step = time.Second
+		const nextStep = 5 * time.Second
+
+		now := time.Now()
+		time.Sleep(now.Truncate(nextStep).Add(nextStep).Add(step).Sub(now))
+
+		now = time.Now().Truncate(step)
+		metrics := []*carbonpb.Metric{{
+			Metric: metricName,
+			Points: []carbonpb.Point{
+				{Timestamp: uint32(now.Add(-6 * step).Unix()), Value: 1},
+			},
+		}, {
+			Metric: metricName,
+			Points: []carbonpb.Point{
+				{Timestamp: uint32(now.Add(-5 * step).Unix()), Value: 6},
+				{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 7},
+				{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 4},
+				{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 5},
+				{Timestamp: uint32(now.Add(-step).Unix()), Value: 2},
+				{Timestamp: uint32(now.Unix()), Value: 3},
+			},
+		}}
+
+		verifyConfigs := []verifyConfig{{
+			from: now.Add(-4 * step).Add(-step), until: now,
+			want: carbonpb.Metric{
+				Metric: metricName,
+				Points: []carbonpb.Point{
+					{Timestamp: uint32(now.Add(-4 * step).Unix()), Value: 7},
+					{Timestamp: uint32(now.Add(-3 * step).Unix()), Value: 4},
+					{Timestamp: uint32(now.Add(-2 * step).Unix()), Value: 5},
+					{Timestamp: uint32(now.Add(-step).Unix()), Value: 2},
+					{Timestamp: uint32(now.Unix()), Value: 3},
+				},
+			},
+		}, {
+			from: now.Add(-step - nextStep).Add(-nextStep), until: now,
+			want: carbonpb.Metric{
+				Metric: metricName,
+				Points: []carbonpb.Point{
+					{Timestamp: uint32(now.Add(-step - nextStep).Unix()), Value: 6},
+					{Timestamp: uint32(now.Add(-step).Unix()), Value: 5},
 				},
 			},
 		}}
@@ -459,8 +539,8 @@ func fetchAndVerifyMetrics(t *testing.T, client *Client, configs []verifyConfig)
 		got := formatMetric(convertFetchResponseToMetric(data))
 		want := formatMetric(&c.want)
 		if got != want {
-			t.Errorf("unexptected fetch result,\nveirfyIndex=%d, from=%s, until=%s\ngot =%s,\nwant=%s,\ndiff=%s",
-				i, c.from, c.until, got, want, diff(got, want))
+			t.Errorf("unexptected fetch result,\nveirfyIndex=%d, metric=%s, from=%d(%s), until=%d(%s)\ngot =%s,\nwant=%s,\ndiff=%s",
+				i, c.want.Metric, c.from.Unix(), c.from, c.until.Unix(), c.until, got, want, diff(got, want))
 		}
 	}
 	return nil
