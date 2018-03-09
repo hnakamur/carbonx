@@ -4,48 +4,85 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	whisp "github.com/go-graphite/go-whisper"
 	"github.com/hnakamur/ltsvlog"
 )
 
-type BulkUpdate struct {
-	Path    string
-	Options *whisp.Options
+type BulkUpdater struct {
+	rootPath string
+	options  *Options
 
-	Retentions        whisp.Retentions
-	AggregationMethod whisp.AggregationMethod
-	XFilesFactor      float32
+	schemas     *WhisperSchemas
+	aggregation *WhisperAggregation
 }
 
-func (u *BulkUpdate) Update(points []*whisp.TimeSeriesPoint) error {
-	ltsvlog.Logger.Info().String("msg", "BulkUpdate.Update").String("path", u.Path).
-		Fmt("retentions", "%+v", u.Retentions).
-		Fmt("aggregation", "%+v", u.AggregationMethod).Float32("xFilesFactor", u.XFilesFactor).
-		Fmt("options", "%+v", u.Options).Log()
+type Options = whisp.Options
 
-	w, err := whisp.OpenWithOptions(u.Path, u.Options)
+func NewBulkUpdater(rootPath, schemasPath, aggregationPath string, options *Options) (*BulkUpdater, error) {
+	schemas, err := ReadWhisperSchemas(schemasPath)
+	if err != nil {
+		return nil, ltsvlog.WrapErr(err, func(err error) error {
+			return fmt.Errorf("failed to read whisper schemas file, err=%v", err)
+		}).String("schemasPath", schemasPath).Stack("")
+	}
+
+	agg, err := ReadWhisperAggregation(aggregationPath)
+	if err != nil {
+		return nil, ltsvlog.WrapErr(err, func(err error) error {
+			return fmt.Errorf("failed to read whisper aggregation file, err=%v", err)
+		}).String("aggregationPath", aggregationPath).Stack("")
+	}
+
+	return &BulkUpdater{
+		rootPath:    rootPath,
+		options:     options,
+		schemas:     &schemas,
+		aggregation: agg,
+	}, nil
+}
+
+func (u *BulkUpdater) Update(metric string, points []*whisp.TimeSeriesPoint) error {
+	ltsvlog.Logger.Info().String("msg", "BulkUpdater.Update").String("metric", metric).
+		Fmt("points", "%+v", points).Log()
+
+	path := u.metricPath(metric)
+	w, err := whisp.OpenWithOptions(path, u.options)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return ltsvlog.WrapErr(err, func(err error) error {
 				return fmt.Errorf("failed to open whisper file, err=%v", err)
-			}).String("path", u.Path).Fmt("options", "%+v", u.Options).Stack("")
+			}).String("path", path).Fmt("options", "%+v", u.options).Stack("")
 		}
 
-		err = os.MkdirAll(filepath.Dir(u.Path), os.ModeDir|os.ModePerm)
+		schema, ok := u.schemas.Match(metric)
+		if !ok {
+			return ltsvlog.Err(fmt.Errorf("no storage schema defined for metric %s", metric)).
+				String("metric", metric).Stack("")
+		}
+
+		aggr := u.aggregation.match(metric)
+		if aggr == nil {
+			return ltsvlog.Err(fmt.Errorf("no storage schema defined for metric %s", metric)).
+				String("metric", metric).Stack("")
+		}
+
+		err = os.MkdirAll(filepath.Dir(path), os.ModeDir|os.ModePerm)
 		if err != nil {
 			return ltsvlog.WrapErr(err, func(err error) error {
 				return fmt.Errorf("failed to mkdir for whisper file, err=%v", err)
-			}).String("path", u.Path).Stack("")
+			}).String("path", path).Stack("")
 		}
 
-		w, err = whisp.CreateWithOptions(u.Path, u.Retentions, u.AggregationMethod, u.XFilesFactor, u.Options)
+		w, err = whisp.CreateWithOptions(path, schema.Retentions, aggr.aggregationMethod,
+			float32(aggr.xFilesFactor), u.options)
 		if err != nil {
 			return ltsvlog.WrapErr(err, func(err error) error {
 				return fmt.Errorf("failed to create whisper file, err=%v", err)
-			}).String("path", u.Path).Fmt("retentions", "%+v", u.Retentions).
-				Fmt("aggregation", "%+v", u.AggregationMethod).Float32("xFilesFactor", u.XFilesFactor).
-				Fmt("options", "%+v", u.Options).Stack("")
+			}).String("path", path).Fmt("retentions", "%+v", schema.Retentions).
+				Fmt("aggregation", "%+v", aggr.aggregationMethod).Float32("xFilesFactor", float32(aggr.xFilesFactor)).
+				Fmt("options", "%+v", u.options).Stack("")
 		}
 	}
 	defer w.Close()
@@ -54,7 +91,11 @@ func (u *BulkUpdate) Update(points []*whisp.TimeSeriesPoint) error {
 	if err != nil {
 		return ltsvlog.WrapErr(err, func(err error) error {
 			return fmt.Errorf("failed to update whisper file points, err=%v", err)
-		}).String("path", u.Path).Fmt("points", "%+v", points).Stack("")
+		}).String("path", path).Fmt("points", "%+v", points).Stack("")
 	}
 	return nil
+}
+
+func (u *BulkUpdater) metricPath(metric string) string {
+	return filepath.Join(u.rootPath, filepath.Join(strings.Split(metric, ".")...)) + ".wsp"
 }
