@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	whisp "github.com/go-graphite/go-whisper"
+	"github.com/hnakamur/carbonx/carbonpb"
 	"github.com/hnakamur/ltsvlog"
 )
 
@@ -52,9 +53,6 @@ func NewBulkUpdater(rootPath, schemasPath, aggregationPath string, options *Opti
 // Update updates many points for one metric at once.
 // If the whisper file for the metric does not exist, it will be created first.
 func (u *BulkUpdater) Update(metric string, points []*TimeSeriesPoint) error {
-	ltsvlog.Logger.Info().String("msg", "BulkUpdater.Update").String("metric", metric).
-		Fmt("points", "%+v", points).Log()
-
 	path := u.metricPath(metric)
 	w, err := whisp.OpenWithOptions(path, u.options)
 	if err != nil {
@@ -106,4 +104,15 @@ func (u *BulkUpdater) Update(metric string, points []*TimeSeriesPoint) error {
 
 func (u *BulkUpdater) metricPath(metric string) string {
 	return filepath.Join(u.rootPath, filepath.Join(strings.Split(metric, ".")...)) + ".wsp"
+}
+
+func TimeSeriesPointsFromMetric(metric *carbonpb.Metric) (name string, points []*TimeSeriesPoint) {
+	points = make([]*TimeSeriesPoint, len(metric.Points))
+	for i, p := range metric.Points {
+		points[i] = &TimeSeriesPoint{
+			Time:  int(p.Timestamp),
+			Value: p.Value,
+		}
+	}
+	return metric.Metric, points
 }

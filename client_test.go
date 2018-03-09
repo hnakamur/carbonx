@@ -540,7 +540,7 @@ func fetchAndVerifyMetrics(t *testing.T, client *Client, configs []verifyConfig)
 		want := formatMetric(&c.want)
 		if got != want {
 			t.Errorf("unexptected fetch result,\nveirfyIndex=%d, metric=%s, from=%d(%s), until=%d(%s)\ngot =%s,\nwant=%s,\ndiff=%s",
-				i, c.want.Metric, c.from.Unix(), c.from, c.until.Unix(), c.until, got, want, diff(got, want))
+				i, c.want.Metric, c.from.Unix(), formatTime(c.from), c.until.Unix(), formatTime(c.until), got, want, diff(got, want))
 		}
 	}
 	return nil
@@ -574,13 +574,24 @@ func appendPoints(b []byte, points []carbonpb.Point) []byte {
 		b = append(b, "{Timestamp:"...)
 		b = strconv.AppendInt(b, int64(p.Timestamp), 10)
 		b = append(b, '(')
-		b = time.Unix(int64(p.Timestamp), 0).AppendFormat(b, time.RFC3339)
+		b = appendTime(b, time.Unix(int64(p.Timestamp), 0))
 		b = append(b, ") Value:"...)
 		b = strconv.AppendFloat(b, p.Value, 'g', -1, 64)
 		b = append(b, '}')
 	}
 	b = append(b, ']')
 	return b
+}
+
+const timeFormat = "2006-01-02 15:04:05"
+
+func formatTime(t time.Time) string {
+	var b [len(timeFormat)]byte
+	return string(appendTime(b[:0], t))
+}
+
+func appendTime(b []byte, t time.Time) []byte {
+	return t.AppendFormat(b, timeFormat)
 }
 
 func diff(text1, text2 string) string {

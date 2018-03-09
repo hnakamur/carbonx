@@ -46,15 +46,15 @@ func (c *Carbon) CarbonConfigFilename() string {
 	return filepath.Join(c.RootDir, "go-carbon.conf")
 }
 
-func (c *Carbon) dataDirname() string {
+func (c *Carbon) DataDirname() string {
 	return filepath.Join(c.RootDir, "data")
 }
 
-func (c *Carbon) schemasFilename() string {
+func (c *Carbon) SchemasFilename() string {
 	return filepath.Join(c.RootDir, "storage-schemas.conf")
 }
 
-func (c *Carbon) aggregationFilename() string {
+func (c *Carbon) AggregationFilename() string {
 	return filepath.Join(c.RootDir, "storage-aggregation.conf")
 }
 
@@ -63,7 +63,7 @@ func (c *Carbon) logDirname() string {
 }
 
 func (c *Carbon) setup() error {
-	err := os.MkdirAll(c.dataDirname(), 0700)
+	err := os.MkdirAll(c.DataDirname(), 0700)
 	if err != nil {
 		return err
 	}
@@ -72,11 +72,11 @@ func (c *Carbon) setup() error {
 		return err
 	}
 
-	err = schemasConfig(c.Schemas).writeFile(c.schemasFilename())
+	err = schemasConfig(c.Schemas).writeFile(c.SchemasFilename())
 	if err != nil {
 		return err
 	}
-	err = aggregationsConfig(c.Aggregations).writeFile(c.aggregationFilename())
+	err = aggregationsConfig(c.Aggregations).writeFile(c.AggregationFilename())
 	if err != nil {
 		return err
 	}

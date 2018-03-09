@@ -194,9 +194,9 @@ func (c *Carbon) writeCarbonConfigTo(w io.Writer) error {
 	}{
 		User:               u.Username,
 		MaxCPU:             runtime.NumCPU(),
-		DataDir:            c.dataDirname(),
-		SchemasFile:        c.schemasFilename(),
-		AggregationFile:    c.aggregationFilename(),
+		DataDir:            c.DataDirname(),
+		SchemasFile:        c.SchemasFilename(),
+		AggregationFile:    c.AggregationFilename(),
 		TCPListen:          c.TCPListen,
 		ProtobufListen:     c.ProtobufListen,
 		CarbonserverListen: c.CarbonserverListen,
