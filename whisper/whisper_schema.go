@@ -2,7 +2,7 @@
 // it supports old and new retention format
 // see https://graphite.readthedocs.io/en/0.9.9/config-carbon.html#storage-schemas-conf
 // based on https://github.com/grobian/carbonwriter but with some improvements
-package persister
+package whisper
 
 import (
 	"fmt"

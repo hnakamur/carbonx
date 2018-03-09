@@ -1,4 +1,4 @@
-package persister
+package whisper
 
 import (
 	"io/ioutil"

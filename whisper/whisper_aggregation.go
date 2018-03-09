@@ -1,4 +1,4 @@
-package persister
+package whisper
 
 /*
 Schemas read code from https://github.com/grobian/carbonwriter/
