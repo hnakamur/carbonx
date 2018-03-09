@@ -20,15 +20,15 @@ type whisperAggregationItem struct {
 	aggregationMethod    whisper.AggregationMethod
 }
 
-// WhisperAggregation ...
-type WhisperAggregation struct {
+// whisperAggregation ...
+type whisperAggregation struct {
 	Data    []*whisperAggregationItem
 	Default *whisperAggregationItem
 }
 
-// NewWhisperAggregation create instance of WhisperAggregation
-func NewWhisperAggregation() *WhisperAggregation {
-	return &WhisperAggregation{
+// newWhisperAggregation create instance of whisperAggregation
+func newWhisperAggregation() *whisperAggregation {
+	return &whisperAggregation{
 		Data: make([]*whisperAggregationItem, 0),
 		Default: &whisperAggregationItem{
 			name:                 "default",
@@ -40,14 +40,14 @@ func NewWhisperAggregation() *WhisperAggregation {
 	}
 }
 
-// ReadWhisperAggregation ...
-func ReadWhisperAggregation(filename string) (*WhisperAggregation, error) {
+// readWhisperAggregation ...
+func readWhisperAggregation(filename string) (*whisperAggregation, error) {
 	config, err := parseIniFile(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	result := NewWhisperAggregation()
+	result := newWhisperAggregation()
 
 	for _, section := range config {
 		item := &whisperAggregationItem{}
@@ -91,7 +91,7 @@ func ReadWhisperAggregation(filename string) (*WhisperAggregation, error) {
 }
 
 // Match find schema for metric
-func (a *WhisperAggregation) match(metric string) *whisperAggregationItem {
+func (a *whisperAggregation) match(metric string) *whisperAggregationItem {
 	for _, s := range a.Data {
 		if s.pattern.MatchString(metric) {
 			return s

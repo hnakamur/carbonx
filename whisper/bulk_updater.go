@@ -10,25 +10,31 @@ import (
 	"github.com/hnakamur/ltsvlog"
 )
 
+// BulkUpdater update many points for one metric at once.
 type BulkUpdater struct {
 	rootPath string
 	options  *Options
 
-	schemas     *WhisperSchemas
-	aggregation *WhisperAggregation
+	schemas     *whisperSchemas
+	aggregation *whisperAggregation
 }
 
+// Options is used when creating a whisper file.
 type Options = whisp.Options
 
+// TimeSeriesPoint is points to update.
+type TimeSeriesPoint = whisp.TimeSeriesPoint
+
+// NewBulkUpdater creates a new BulkUpdater.
 func NewBulkUpdater(rootPath, schemasPath, aggregationPath string, options *Options) (*BulkUpdater, error) {
-	schemas, err := ReadWhisperSchemas(schemasPath)
+	schemas, err := readWhisperSchemas(schemasPath)
 	if err != nil {
 		return nil, ltsvlog.WrapErr(err, func(err error) error {
 			return fmt.Errorf("failed to read whisper schemas file, err=%v", err)
 		}).String("schemasPath", schemasPath).Stack("")
 	}
 
-	agg, err := ReadWhisperAggregation(aggregationPath)
+	agg, err := readWhisperAggregation(aggregationPath)
 	if err != nil {
 		return nil, ltsvlog.WrapErr(err, func(err error) error {
 			return fmt.Errorf("failed to read whisper aggregation file, err=%v", err)
@@ -43,7 +49,9 @@ func NewBulkUpdater(rootPath, schemasPath, aggregationPath string, options *Opti
 	}, nil
 }
 
-func (u *BulkUpdater) Update(metric string, points []*whisp.TimeSeriesPoint) error {
+// Update updates many points for one metric at once.
+// If the whisper file for the metric does not exist, it will be created first.
+func (u *BulkUpdater) Update(metric string, points []*TimeSeriesPoint) error {
 	ltsvlog.Logger.Info().String("msg", "BulkUpdater.Update").String("metric", metric).
 		Fmt("points", "%+v", points).Log()
 

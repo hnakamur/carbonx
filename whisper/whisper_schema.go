@@ -1,8 +1,9 @@
+package whisper
+
 // this is a parser for graphite's storage-schemas.conf
 // it supports old and new retention format
 // see https://graphite.readthedocs.io/en/0.9.9/config-carbon.html#storage-schemas-conf
 // based on https://github.com/grobian/carbonwriter but with some improvements
-package whisper
 
 import (
 	"fmt"
@@ -14,8 +15,8 @@ import (
 	"github.com/go-graphite/go-whisper"
 )
 
-// Schema represents one schema setting
-type Schema struct {
+// schema represents one schema setting
+type schema struct {
 	Name         string
 	Pattern      *regexp.Regexp
 	RetentionStr string
@@ -23,25 +24,25 @@ type Schema struct {
 	Priority     int64
 }
 
-// WhisperSchemas contains schema settings
-type WhisperSchemas []Schema
+// whisperSchemas contains schema settings
+type whisperSchemas []schema
 
-func (s WhisperSchemas) Len() int           { return len(s) }
-func (s WhisperSchemas) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s WhisperSchemas) Less(i, j int) bool { return s[i].Priority >= s[j].Priority }
+func (s whisperSchemas) Len() int           { return len(s) }
+func (s whisperSchemas) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s whisperSchemas) Less(i, j int) bool { return s[i].Priority >= s[j].Priority }
 
 // Match finds the schema for metric or returns false if none found
-func (s WhisperSchemas) Match(metric string) (Schema, bool) {
+func (s whisperSchemas) Match(metric string) (schema, bool) {
 	for _, schema := range s {
 		if schema.Pattern.MatchString(metric) {
 			return schema, true
 		}
 	}
-	return Schema{}, false
+	return schema{}, false
 }
 
-// ParseRetentionDefs parses retention definitions into a Retentions structure
-func ParseRetentionDefs(retentionDefs string) (whisper.Retentions, error) {
+// parseRetentionDefs parses retention definitions into a Retentions structure
+func parseRetentionDefs(retentionDefs string) (whisper.Retentions, error) {
 	retentions := make(whisper.Retentions, 0)
 	for _, retentionDef := range strings.Split(retentionDefs, ",") {
 		retentionDef = strings.TrimSpace(retentionDef)
@@ -70,19 +71,19 @@ func ParseRetentionDefs(retentionDefs string) (whisper.Retentions, error) {
 	return retentions, nil
 }
 
-// ReadWhisperSchemas reads and parses a storage-schemas.conf file and returns a sorted
+// readWhisperSchemas reads and parses a storage-schemas.conf file and returns a sorted
 // schemas structure
 // see https://graphite.readthedocs.io/en/0.9.9/config-carbon.html#storage-schemas-conf
-func ReadWhisperSchemas(filename string) (WhisperSchemas, error) {
+func readWhisperSchemas(filename string) (whisperSchemas, error) {
 	config, err := parseIniFile(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	var schemas WhisperSchemas
+	var schemas whisperSchemas
 
 	for i, section := range config {
-		schema := Schema{}
+		schema := schema{}
 		schema.Name = section["name"]
 
 		if section["pattern"] == "" {
@@ -94,7 +95,7 @@ func ReadWhisperSchemas(filename string) (WhisperSchemas, error) {
 				section["pattern"], schema.Name, err.Error())
 		}
 		schema.RetentionStr = section["retentions"]
-		schema.Retentions, err = ParseRetentionDefs(schema.RetentionStr)
+		schema.Retentions, err = parseRetentionDefs(schema.RetentionStr)
 
 		if err != nil {
 			return nil, fmt.Errorf("[persister] Failed to parse retentions %q for [%s]: %s",
