@@ -33,6 +33,8 @@ workers = 8
 max-updates-per-second = 0
 # Sparse file creation
 sparse-create = false
+# use flock on every file call (ensures consistency if there are concurrent read/writes to the same file)
+flock = true
 enabled = true
 
 [cache]
