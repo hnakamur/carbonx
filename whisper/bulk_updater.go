@@ -53,7 +53,7 @@ func NewBulkUpdater(rootPath, schemasPath, aggregationPath string, options *Opti
 // Update updates many points for one metric at once.
 // If the whisper file for the metric does not exist, it will be created first.
 func (u *BulkUpdater) Update(metric string, points []*TimeSeriesPoint) error {
-	path := u.metricPath(metric)
+	path := MetricFilePath(u.rootPath, metric)
 	w, err := whisp.OpenWithOptions(path, u.options)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -102,8 +102,8 @@ func (u *BulkUpdater) Update(metric string, points []*TimeSeriesPoint) error {
 	return nil
 }
 
-func (u *BulkUpdater) metricPath(metric string) string {
-	return filepath.Join(u.rootPath, filepath.Join(strings.Split(metric, ".")...)) + ".wsp"
+func MetricFilePath(rootPath, metric string) string {
+	return filepath.Join(rootPath, filepath.Join(strings.Split(metric, ".")...)) + ".wsp"
 }
 
 func TimeSeriesPointsFromMetric(metric *carbonpb.Metric) (name string, points []*TimeSeriesPoint) {

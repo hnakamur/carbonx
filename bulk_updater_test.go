@@ -288,6 +288,19 @@ func testBulkUpdaterHelper(t *testing.T,
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		seen := make(map[string]struct{})
+		for _, m := range metrics {
+			if _, ok := seen[m.Metric]; ok {
+				continue
+			}
+			seen[m.Metric] = struct{}{}
+
+			err := dumpWhisper(whisper.MetricFilePath(ts.DataDirname(), m.Metric))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
 	}()
 	ts.Wait()
 }
